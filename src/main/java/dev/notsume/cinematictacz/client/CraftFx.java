@@ -3,6 +3,7 @@ package dev.notsume.cinematictacz.client;
 import com.mojang.blaze3d.vertex.PoseStack;
 import dev.dyslexic.cinematic.client.HammerModel;
 import dev.dyslexic.cinematic.client.Scene;
+import dev.notsume.cinematictacz.CinematicTacz;
 import net.fabricmc.fabric.api.client.model.loading.v1.FabricBakedModelManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -13,6 +14,7 @@ import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.phys.Vec3;
@@ -20,14 +22,14 @@ import org.jetbrains.annotations.Nullable;
 import org.joml.Matrix3f;
 import org.joml.Quaternionf;
 
-/** The crafting effects of the scenes: the forge's hammer, the press's stroke, smoke and sparks. */
+/** The crafting effects of the scenes: the forge's hammer, the press's stroke, the screwdriver, smoke and sparks. */
 public final class CraftFx {
     private CraftFx() {}
 
     // ---- the press ----------------------------------------------------------------------------------------
 
-    /** How far the press goes down on a stroke (blocks: 1.5 model pixels) and how long a stroke lasts (seconds). */
-    private static final float PRESS_DEPTH = 1.5f / 16, STROKE = 0.24f;
+    /** How long a stroke lasts (seconds). */
+    private static final float STROKE = 0.24f;
 
     @Nullable
     private static BlockPos pressAt;
@@ -41,8 +43,8 @@ public final class CraftFx {
         strokes = at;
     }
 
-    /** How far down the press of the table at {@code pos} is now, in blocks; 0 for every other table. */
-    public static float pressDepth(BlockPos pos) {
+    /** How far through a stroke the press of the table at {@code pos} is now, 0 (up) to 1 (down); 0 for every other table. */
+    public static float pressStroke(BlockPos pos) {
         if (!pos.equals(pressAt)) return 0;
         double t = Scene.clock() - pressFrom;
         double depth = 0;
@@ -50,7 +52,7 @@ public final class CraftFx {
             double x = (t - stroke) / STROKE + 0.5;
             if (x > 0 && x < 1) depth = Math.max(depth, Math.sin(Math.PI * x));
         }
-        return (float) depth * PRESS_DEPTH;
+        return (float) depth;
     }
 
     // ---- particles ----------------------------------------------------------------------------------------
@@ -84,21 +86,44 @@ public final class CraftFx {
     private static final Vec3 HAMMER_GRIP = new Vec3(0.5, 0.18, 0.5);
     /** From the grip to the striking edge of the head, along the handle. */
     static final double HAMMER_REACH = (1.125 - HAMMER_GRIP.y) * HAMMER_SCALE;
+    /** How far the head's lower striking edge lies off the handle's line. */
+    static final double HAMMER_ACROSS = 0.375 * HAMMER_SCALE;
 
     /** The hammer gripped at {@code grip}, its handle along {@code along}, its striking face away from {@code headAxis}. */
-    static void drawHammer(PoseStack pose, MultiBufferSource buffers, Vec3 camera, Vec3 grip, Vec3 along, Vec3 headAxis, int light) {
-        BakedModel model = ((FabricBakedModelManager) Minecraft.getInstance().getModelManager()).getModel(HammerModel.LOCATION);
+    static void drawHammer(PoseStack pose, MultiBufferSource buffers, Vec3 camera, Vec3 grip, Vec3 along, Vec3 headAxis,
+                           float size, int light) {
+        drawProp(pose, buffers, camera, HammerModel.LOCATION, HAMMER_SCALE * size, HAMMER_GRIP, grip, along, headAxis, light);
+    }
+
+    // ---- the screwdriver ----------------------------------------------------------------------------------
+
+    /** The add-on's own prop (models/prop/screwdriver.json, loaded in CinematicTaczClient): tip at y 0, handle up. */
+    static final ResourceLocation SCREWDRIVER = ResourceLocation.fromNamespaceAndPath(CinematicTacz.ID, "prop/screwdriver");
+    private static final float SCREWDRIVER_SCALE = 0.3f;
+    private static final Vec3 SCREWDRIVER_GRIP = new Vec3(0.5, 11.5 / 16, 0.5);
+    /** From the tip to the grip, along the shaft. */
+    static final double SCREWDRIVER_REACH = SCREWDRIVER_GRIP.y * SCREWDRIVER_SCALE;
+
+    /** The screwdriver gripped at {@code grip}, its shaft along {@code along} (tip to handle), turned by {@code across}. */
+    static void drawScrewdriver(PoseStack pose, MultiBufferSource buffers, Vec3 camera, Vec3 grip, Vec3 along, Vec3 across, int light) {
+        drawProp(pose, buffers, camera, SCREWDRIVER, SCREWDRIVER_SCALE, SCREWDRIVER_GRIP, grip, along, across, light);
+    }
+
+    /** An extra model drawn with its {@code gripPoint} (model units) at {@code grip}, its +y along {@code along}, +x along {@code x}. */
+    private static void drawProp(PoseStack pose, MultiBufferSource buffers, Vec3 camera, ResourceLocation location, float scale,
+                                 Vec3 gripPoint, Vec3 grip, Vec3 along, Vec3 x, int light) {
+        BakedModel model = ((FabricBakedModelManager) Minecraft.getInstance().getModelManager()).getModel(location);
         if (model == null) return;
-        Vec3 z = headAxis.cross(along);
+        Vec3 z = x.cross(along);
         Quaternionf rotation = new Matrix3f(
-                (float) headAxis.x, (float) headAxis.y, (float) headAxis.z,
+                (float) x.x, (float) x.y, (float) x.z,
                 (float) along.x, (float) along.y, (float) along.z,
                 (float) z.x, (float) z.y, (float) z.z).getNormalizedRotation(new Quaternionf());
         pose.pushPose();
         pose.translate(grip.x - camera.x, grip.y - camera.y, grip.z - camera.z);
         pose.mulPose(rotation);
-        pose.scale(HAMMER_SCALE, HAMMER_SCALE, HAMMER_SCALE);
-        pose.translate(-HAMMER_GRIP.x, -HAMMER_GRIP.y, -HAMMER_GRIP.z);
+        pose.scale(scale, scale, scale);
+        pose.translate(-gripPoint.x, -gripPoint.y, -gripPoint.z);
         Minecraft.getInstance().getBlockRenderer().getModelRenderer().renderModel(pose.last(),
                 buffers.getBuffer(RenderType.entityCutoutNoCull(InventoryMenu.BLOCK_ATLAS)), null, model,
                 1, 1, 1, light, OverlayTexture.NO_OVERLAY);

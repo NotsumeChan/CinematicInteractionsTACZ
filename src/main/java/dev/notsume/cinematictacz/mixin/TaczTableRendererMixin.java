@@ -28,13 +28,13 @@ abstract class TaczTableRendererMixin {
     @Inject(method = {RENDER, RENDER_INTERMEDIARY}, at = @At("HEAD"), require = 0)
     private void cinematicTacz$pressDown(GunSmithTableBlockEntity table, float partialTick, PoseStack pose,
                                          MultiBufferSource buffers, int light, int overlay, CallbackInfo ci) {
-        float depth = CraftFx.pressDepth(table.getBlockPos());
-        if (depth != 0) TaczClient.press(table, depth);
+        float stroke = CraftFx.pressStroke(table.getBlockPos());
+        if (stroke != 0) TaczClient.press(table, stroke);
     }
 
     @Inject(method = {RENDER, RENDER_INTERMEDIARY}, at = @At("TAIL"), require = 0)
     private void cinematicTacz$pressBack(GunSmithTableBlockEntity table, float partialTick, PoseStack pose,
                                          MultiBufferSource buffers, int light, int overlay, CallbackInfo ci) {
-        if (CraftFx.pressDepth(table.getBlockPos()) != 0) TaczClient.press(table, 0);
+        if (CraftFx.pressStroke(table.getBlockPos()) != 0) TaczClient.press(table, 0);
     }
 }

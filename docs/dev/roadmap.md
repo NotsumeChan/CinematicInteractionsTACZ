@@ -12,26 +12,30 @@ version the owner tested and gave feedback on.
 
 ## Next (owner's feedback on animations v1)
 
-1. **Inspect right after crafting.** Now: leave scene → wait until the scene is over and the gun is picked up →
-   wait 25 ticks (`AfterCraft.DRAW`) → inspect; it feels slow. TACZ's `inspect()` (`LocalPlayerInspect`) only checks
-   `clientStateLock`, not the draw. Plan: select the gun slot as soon as the gun is in the inventory (during the
-   rise/outro, so TACZ's draw plays while the camera comes back), inspect as soon as `Scene.active()` is false;
-   shorten the rise (`FORGE_LENGTH`).
-2. **Hammer attached to the hand.** Now the hammer is drawn at the hand *target* and the hand lags behind. Cinematic
-   Interactions' `AnvilStation` draws it at the real hand (`Hands.position(true)`, package-private) and sets
-   `handsStiffness()` to 55 while moving. Plan: an `@Invoker` mixin on `dev.dyslexic.cinematic.client.Hands#position`
-   (a mod's own method name, not remapped) and the same stiffness.
-3. **Press: only the ram moves.** Now the whole bone `loader` (frame included) moves. TACZ (`BedrockModel`): cubes
-   without rotation are `BedrockCubeBox` in `part.cubes` (public `minX..maxZ`, converted coordinates); each rotated cube
-   becomes its own child `BedrockPart` (pivot in `x/y/z`, rotation) in `part.children`; `addChild` is public. Plan: on
-   first use, move the ram column's cubes/children (bedrock column around x ≈ -3, z ≈ 6.5: cubes
-   `[-3.5,8.5,6] 1×9×1`, `[-3.5,20.5,6] 1×4×1`, `[-3.75,22,5.75]`, the small ones at y 17.5–19.25) into a new child
-   part and stroke only that. Check `convertOrigin`/`convertPivot` in `BedrockModel` for the coordinate conversion.
-   Bone and cubes are the default gunpack's (`ponytail:` note it).
-4. **Stonecutter** (kikugie's Gradle plugin): one codebase for several Minecraft versions/loaders. Start with
-   `fabric 1.21.1` as the only node so the build is unchanged, version-specific code behind `//?` comments. Next
-   candidates: Forge 1.20.1 (original TACZ, Cinematic Interactions has `forge/1.20.1`), NeoForge 1.21.1.
-5. Attachment bench animation: no idea chosen yet (ideas: the attachment flies onto a hovering gun and clicks on).
+1. **Inspect right after crafting.** Done, tested in game: the gun is selected as soon as it is picked up
+   (during the rise/outro, so TACZ draws it while the camera comes back), inspected once `Scene.active()` is false and
+   the gun is in the main hand; the rise is 0.4 s (`FORGE_LENGTH` 1.9).
+2. **Hammer attached to the hand.** Done, tested in game: the hammer is drawn at the real hand
+   (`mixin/HandsAccessor`, an `@Invoker` on Cinematic Interactions' package-private `Hands#position`) and
+   `handsStiffness()` is 55 while forging; the handle is slanted as in that anvil and the arm lifts it (`HAMMER_LIFT`).
+3. **Press: only the ram moves.** Done: `TaczClient.press` offsets only the `loader`
+   children pivoted on the column axis (bedrock x -3, z 6.5: shaft, cap, collars); TACZ makes each rotated cube such a
+   child, so no re-parenting was needed. Tested in game. The lever also turns down round its hinge (`LEVER_SWING` 30°)
+   and the right hand follows its knob (waiting for an in-game test). Default gunpack only (`ponytail:` noted).
+4. **Stonecutter** 0.9.8 (kikugie's Gradle plugin): done, one node `1.21.1` (Fabric), built JAR identical in content.
+   Groovy DSL kept (`hard_mode` silences the Kotlin DSL advice). Next nodes: Forge 1.20.1 (original TACZ, Cinematic
+   Interactions has `forge/1.20.1`), NeoForge 1.21.1; a second loader needs its own Loom variant per node (see the
+   Stonecutter wiki and its `loom-back-compat` plugin), and its TACZ/CI JARs.
+5. **Attachment bench animation.** Done, waiting for an in-game test: materials gather into the part, then a small
+   hammer (three taps) and a screwdriver (three quarter turns), the order a coin flip per craft, then it pops.
+   Owner's idea for later, for the forge: add weld stitches and screwing to the hammer blows, smoke and fire particles.
+6. **Settings**, the way Cinematic Interactions does them (`fabric/1.21.1`: `client/Settings.java`, `ClientConfig`,
+   `ModMenuIntegration`, `ClothScreen`, `SettingsScreen`): a client file `config/cinematic_tacz-client.json` (same keys
+   in a `.toml` on Forge/NeoForge) built from one spec, every value with a comment and a translation key and grouped in
+   sections; Mod Menu opens a Cloth Config screen when Cloth Config is installed and an own plain screen otherwise; Cloth
+   Config and Mod Menu are `modCompileOnly` + `suggests`, never required. `ClientConfig` is not part of its add-on API:
+   copy the pattern (or ask its owner to expose it). Candidates: scene per table, crafting animations, draw + inspect
+   after forging, whether the forge scene closes after each gun (see "Decisions pending"), smoke/sparks.
 
 ## Requests for Cinematic Interactions' owner
 

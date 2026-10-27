@@ -5,6 +5,7 @@ import dev.notsume.cinematictacz.CinematicTacz;
 import dev.notsume.cinematictacz.tacz.Tacz;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.model.loading.v1.ModelLoadingPlugin;
 
 public final class CinematicTaczClient implements ClientModInitializer {
     @Override
@@ -13,5 +14,6 @@ public final class CinematicTaczClient implements ClientModInitializer {
             AddonScenes.register(CinematicTacz.scene(table), (pos, state, player, side) -> new GunSmithScene(pos, state, side));
         }
         ClientTickEvents.END_CLIENT_TICK.register(AfterCraft::tick);
+        ModelLoadingPlugin.register(context -> context.addModels(CraftFx.SCREWDRIVER));
     }
 }

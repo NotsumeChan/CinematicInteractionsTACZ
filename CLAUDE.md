@@ -30,7 +30,7 @@ Sibling folders (same parent directory, `minecraft/`):
 
 ```sh
 export JAVA_HOME=$PWD/../.jdk/current           # fish: set -x JAVA_HOME $PWD/../.jdk/current
-./gradlew build                                  # build/libs/CinematicInteractions-TACZ-Fabric-1.21.1-0.1.0.jar
+./gradlew build                                  # versions/1.21.1/build/libs/CinematicInteractions-TACZ-Fabric-1.21.1-0.1.0.jar
 ./gradlew runClient                              # dev game: run/client
 ./gradlew runServer                              # dev server: run/server (EULA accepted by the owner)
 ```
@@ -39,6 +39,12 @@ export JAVA_HOME=$PWD/../.jdk/current           # fish: set -x JAVA_HOME $PWD/..
   it needs `test-mods/polymorph/polymorph-fabric-1.1.0+1.21.1.jar`, downloaded from Modrinth, git-ignored there).
 - In-game checks: the owner presses **F2** (screenshots in `run/client/screenshots/`) and the log is
   `run/client/logs/latest.log`. Lines `[Cinematic] ADDON at …: no scene (…)` explain why a scene fell back.
+- Stonecutter (`settings.gradle`, `stonecutter.gradle`): `build.gradle` builds each node in `versions/<node>/`; only
+  `1.21.1` (Fabric) so far, which is also the version in `src/` (`vcsVersion`). Code that differs per node goes behind
+  `//?` comments. The dev games stay in `run/client` and `run/server`.
+- Releases: `.github/workflows/release.yml` builds on push to `nightly` (rolling pre-release `nightly`) and `main`
+  (release `v<mod_version>`, skipped if it exists). It builds Cinematic Interactions from the commit pinned there: keep
+  it in step with `cinematic_jar`.
 - Feeding a script to `runServer` through stdin makes the server read the rest as console commands: run it alone.
 
 More: [docs/dev/architecture.md](docs/dev/architecture.md), [docs/dev/roadmap.md](docs/dev/roadmap.md),

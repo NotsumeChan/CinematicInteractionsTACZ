@@ -7,6 +7,7 @@ import dev.dyslexic.cinematic.client.CameraRig;
 import dev.dyslexic.cinematic.client.ItemPlacer;
 import dev.dyslexic.cinematic.client.Picking;
 import dev.dyslexic.cinematic.client.Scene;
+import dev.notsume.cinematictacz.mixin.HandsAccessor;
 import dev.notsume.cinematictacz.tacz.Tacz;
 import dev.notsume.cinematictacz.tacz.TaczClient;
 import net.minecraft.client.Camera;
@@ -50,17 +51,32 @@ import java.util.Set;
  */
 public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu> {
     private static final Vec3 UP = new Vec3(0, 1, 0);
-    /** The forge (gun smith table): the part lands on the desk, three hammer blows, the last one crafts; it rises after. */
+    /** The forge (gun smith table): materials on the desk, three hammer blows, the last one crafts; the part rises after. */
     private static final double[] BLOWS = {0.7, 1.1, 1.5};
-    private static final double FORGE_LENGTH = 2.2, FORGE_LAND = 0.4, HAMMER_FROM = 0.3;
-    /** The press (ammo bench): the materials go in, two strokes, the second crafts; the rounds tumble out after. */
+    private static final double FORGE_LENGTH = 1.9, FORGE_LAND = 0.4, HAMMER_FROM = 0.3;
+    /** The handle's pitch (degrees) at a blow and fully raised. */
+    private static final double HAMMER_IMPACT = -12, HAMMER_RAISED = 75;
+    /** How high (blocks) the hand lifts the hammer between blows; it also draws back a third of that. */
+    private static final double HAMMER_LIFT = 0.3;
+    /** The press (ammo bench): the materials go in, two strokes; the rounds tumble out after, then it crafts. */
     private static final double[] STROKES = {0.6, 1.0};
     private static final double PRESS_LENGTH = 1.7;
+    /** The right hand is on the press's lever from this second to this long after the last stroke. */
+    private static final double LEVER_FROM = 0.3, LEVER_AFTER = 0.2;
     private static final int ROUNDS = 4;
-    /** The tall bench: the materials gather into the part. */
-    private static final double GATHER_LENGTH = 0.9, GATHER_BEAT = 0.55;
+    /**
+     * The attachment bench: the materials gather into the hovering part, then a small hammer taps it and a screwdriver
+     * turns its screws, in either order (a coin flip per craft); it pops in a puff of smoke and then crafts.
+     */
+    private static final double FIT_GATHER = 0.4, FIT_STEP = 0.75, FIT_POP = FIT_GATHER + 2 * FIT_STEP, FIT_LENGTH = FIT_POP + 0.3;
+    /** Within a tool's step: the hammer's three taps and the screwdriver's three quarter turns (each clicks home). */
+    private static final double[] FIT_BEATS = {0.25, 0.45, 0.65};
+    /** The small hammer, against the forge's: its size and how high it lifts (blocks). */
+    private static final double TAP_SIZE = 0.6, TAP_LIFT = 0.1;
     /** Guns on the gun smith table are turned so long ones lie side by side on a slant, as on a rack, not end to end. */
     private static final float DIAGONAL = 30;
+    /** Seconds the recipe grid takes to shrink away when a craft starts. */
+    private static final double GRID_FADE = 0.25;
 
     /**
      * Where everything goes, in blocks from the middle of the table's footprint at its foot: {@code out} towards the
@@ -128,6 +144,8 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
     private Tacz.Recipe selected;
     /** The scale of the tab the chosen part was picked from: it keeps it while the player leafs through others. */
     private float selectedScale = 1;
+    /** This craft on the attachment bench screws before it taps. */
+    private boolean screwFirst;
     /** Recipes on the current page (and the chosen one) the player has the materials for, refreshed every tick. */
     private final Set<ResourceLocation> craftable = new HashSet<>();
     /** How many blows or strokes of the current craft have landed (their sparks, smoke and sound played). */
@@ -410,10 +428,12 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
         } else if (layout == SINGLE) {
             sound(SoundEvents.SMITHING_TABLE_USE, 0.5f, 1.2f);
             CraftFx.press(root, STROKES);
-            startMove(PRESS_LENGTH, STROKES[STROKES.length - 1], () -> TaczClient.craft(recipe.id(), menuId));
+            // crafted once the rounds lie on the mat, so they do not reach the inventory while still falling
+            startMove(PRESS_LENGTH, PRESS_LENGTH, () -> TaczClient.craft(recipe.id(), menuId));
         } else {
             sound(SoundEvents.SMITHING_TABLE_USE, 0.5f, 1f);
-            startMove(GATHER_LENGTH, GATHER_BEAT, () -> TaczClient.craft(recipe.id(), menuId));
+            screwFirst = player.getRandom().nextBoolean();
+            startMove(FIT_LENGTH, FIT_LENGTH, () -> TaczClient.craft(recipe.id(), menuId));
         }
     }
 
@@ -422,24 +442,60 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
     public void beforeFrame() {
         double t = moveTime();
         if (t >= 0) {
-            double[] hits = layout == WIDE ? BLOWS : layout == SINGLE ? STROKES : new double[0];
+            double[] hits = layout == WIDE ? BLOWS : layout == SINGLE ? STROKES : fitHits();
             while (landed < hits.length && t >= hits[landed]) land(landed++);
         } else if (drawAfter) {
             drawAfter = false;
             Scene.leave();
-            AfterCraft.go();
         }
     }
 
     private void land(int hit) {
         if (layout == WIDE) {
             CraftFx.sparks(anvil(), 8);
-            CraftFx.smoke(anvil(), 3);
+            // the last blow's smoke covers the materials turning into the finished part
+            CraftFx.smoke(anvil(), hit == BLOWS.length - 1 ? 24 : 3);
             sound(SoundEvents.ANVIL_USE, 0.35f, 1.1f + 0.1f * hit);
-        } else {
+        } else if (layout == SINGLE) {
             CraftFx.smoke(pressHead(), 6);
             sound(SoundEvents.PISTON_EXTEND, 0.45f, 1.4f);
+        } else if (hit == FIT_BEATS.length * 2) {
+            CraftFx.smoke(fitPoint(), 10);
+            CraftFx.sparks(fitPoint(), 4);
+            sound(SoundEvents.SMITHING_TABLE_USE, 0.4f, 1.3f);
+        } else if ((hit < FIT_BEATS.length) == screwFirst) {
+            sound(SoundEvents.LEVER_CLICK, 0.35f, 1.8f + 0.1f * (hit % FIT_BEATS.length));
+        } else {
+            CraftFx.sparks(fitPoint(), 3);
+            sound(SoundEvents.ANVIL_USE, 0.15f, 1.7f + 0.1f * (hit % FIT_BEATS.length));
         }
+    }
+
+    /** The attachment bench's beats in order: the first tool's three, the second's three, then the pop. */
+    private double[] fitHits() {
+        double[] hits = new double[FIT_BEATS.length * 2 + 1];
+        for (int i = 0; i < FIT_BEATS.length; i++) {
+            hits[i] = FIT_GATHER + FIT_BEATS[i];
+            hits[FIT_BEATS.length + i] = FIT_GATHER + FIT_STEP + FIT_BEATS[i];
+        }
+        hits[hits.length - 1] = FIT_POP;
+        return hits;
+    }
+
+    /** When the hammer's step ({@code screw} false) or the screwdriver's starts on the attachment bench. */
+    private double toolFrom(boolean screw) {
+        return FIT_GATHER + (screw == screwFirst ? 0 : FIT_STEP);
+    }
+
+    /** Where the tools work on the attachment bench: the hovering part's face, towards the player. */
+    private Vec3 fitPoint() {
+        return showcase().add(side().scale(0.03));
+    }
+
+    /** A tool's motion within its step, 0..1 at {@code u} seconds into it: three beats, landing at 0, or -1 outside. */
+    private static double fitSwing(double u) {
+        if (u < 0.05 || u > FIT_BEATS[FIT_BEATS.length - 1] + 0.05) return -1;
+        return Math.abs(Math.sin(Math.PI * (u - 0.05) / (FIT_BEATS[0] - 0.05)));
     }
 
     /** The hammer's swing while forging, 0 (on the work) to 1 (raised), or -1 outside the blows. */
@@ -448,22 +504,90 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
         return Math.abs(Math.sin(Math.PI * (t - HAMMER_FROM) / (BLOWS[0] - HAMMER_FROM)));
     }
 
-    /** The hammer's grip and pose for a swing: raised, the head turns up round the wrist. */
+    /**
+     * The hammer's grip and pose for a swing. As in Cinematic Interactions' anvil, the handle leaves the right hand on a
+     * slant, forwards and a little to the left; at a blow it dips just below level onto the work, raised the head turns
+     * up round the wrist.
+     */
     private Vec3[] hammer(double swing) {
-        double angle = Math.toRadians(55) * swing;
-        Vec3 along = side().scale(-Math.cos(angle)).add(UP.scale(Math.sin(angle)));
-        Vec3 headAxis = side().scale(Math.sin(angle)).add(UP.scale(Math.cos(angle)));
-        Vec3 grip = anvil().add(side().scale(CraftFx.HAMMER_REACH)).add(0, 0.03 + 0.06 * swing, 0);
-        return new Vec3[]{grip, along, headAxis};
+        Vec3 slant = side().scale(-0.3).add(right().scale(-0.12)).normalize();
+        return hammer(swing, anvil(), UP, slant, side(), 1, HAMMER_LIFT);
+    }
+
+    /**
+     * The small hammer on the attachment bench's upright part: struck from the player's side, the handle rising to the
+     * part from the right hand below it.
+     */
+    private Vec3[] tapHammer(double swing) {
+        Vec3 slant = UP.scale(0.3).add(right().scale(-0.12)).normalize();
+        return hammer(swing, fitPoint(), side(), slant, UP.scale(-1), TAP_SIZE, TAP_LIFT);
+    }
+
+    /**
+     * A hammer of {@code size} (1: the forge's) striking {@code work} along -{@code up}, its handle leaving the hand along
+     * {@code slant} (across {@code up}); raised, the hand lifts {@code lift} along {@code up} and a third of that along
+     * {@code back}.
+     */
+    private static Vec3[] hammer(double swing, Vec3 work, Vec3 up, Vec3 slant, Vec3 back, double size, double lift) {
+        Vec3 along = handle(slant, up, HAMMER_IMPACT), headAxis = headAxis(slant, up, HAMMER_IMPACT);
+        // the head's striking edge lands on the work
+        Vec3 grip = work.subtract(along.scale(CraftFx.HAMMER_REACH * size)).add(headAxis.scale(CraftFx.HAMMER_ACROSS * size))
+                .add(up.scale(lift * swing)).add(back.scale(lift * 0.35 * swing));
+        double angle = HAMMER_IMPACT + (HAMMER_RAISED - HAMMER_IMPACT) * swing;
+        return new Vec3[]{grip, handle(slant, up, angle), headAxis(slant, up, angle)};
+    }
+
+    private static Vec3 handle(Vec3 slant, Vec3 up, double degrees) {
+        double a = Math.toRadians(degrees);
+        return slant.scale(Math.cos(a)).add(up.scale(Math.sin(a)));
+    }
+
+    private static Vec3 headAxis(Vec3 slant, Vec3 up, double degrees) {
+        double a = Math.toRadians(degrees);
+        return up.scale(Math.cos(a)).subtract(slant.scale(Math.sin(a)));
+    }
+
+    /**
+     * The screwdriver at {@code u} seconds into its step: its tip on the part, the handle towards the player, turned a
+     * quarter at each beat. Returns the grip, the shaft (tip to handle) and the turned crosswise axis.
+     */
+    private Vec3[] screwdriver(double u) {
+        double turns = 0;
+        for (double beat : FIT_BEATS) turns += Mth.clamp((u - beat + 0.15) / 0.15, 0, 1);
+        double a = turns * Math.PI / 2;
+        Vec3 across = right().scale(Math.cos(a)).add(UP.scale(Math.sin(a)));
+        Vec3 tip = fitPoint().add(right().scale(0.04));
+        return new Vec3[]{tip.add(side().scale(CraftFx.SCREWDRIVER_REACH)), side(), across};
     }
 
     /** While forging: the right hand swings the hammer, the left holds the part down. */
     @Override
     @Nullable
     public Vec3[] handsOverride() {
-        double swing = layout == WIDE ? swing(moveTime()) : -1;
+        double t = moveTime();
+        if (layout == SINGLE && t >= LEVER_FROM && t <= STROKES[STROKES.length - 1] + LEVER_AFTER) {
+            // the right hand works the press's lever: on its knob, down with it on every stroke
+            ClientLevel level = Minecraft.getInstance().level;
+            Vec3 knob = level == null ? null : TaczClient.leverKnob(level, root, CraftFx.pressStroke(root));
+            return knob == null ? null : new Vec3[]{knob, rest(false)};
+        }
+        if (layout == TALL && t >= 0) {
+            // the left hand steadies the part, the right works it with whichever tool is out
+            Vec3 steady = showcase().add(right().scale(-0.14)).add(side().scale(0.02));
+            double hammer = fitSwing(t - toolFrom(false)), screw = t - toolFrom(true);
+            if (hammer >= 0) return new Vec3[]{tapHammer(hammer)[0], steady};
+            if (fitSwing(screw) >= 0) return new Vec3[]{screwdriver(screw)[0], steady};
+            return null;
+        }
+        double swing = layout == WIDE ? swing(t) : -1;
         if (swing < 0) return null;
         return new Vec3[]{hammer(swing)[0], anvil().add(right().scale(-0.2)).add(side().scale(0.05)).add(0, 0.04, 0)};
+    }
+
+    /** Fast blows and strokes: the hands follow their targets tightly, as Cinematic Interactions' anvil does. */
+    @Override
+    public double handsStiffness() {
+        return moving() ? 55 : 20;
     }
 
     @Override
@@ -486,10 +610,14 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
         float gridTilt = layout.upright() ? 90 : 0, hoverTilt = layout.upright() ? 90 : 70;
         float pageScale = tabs.isEmpty() ? 1 : tabScale(tabs.get(tab).id());
         List<Tacz.Recipe> visible = visible();
-        for (int i = 0; i < visible.size(); i++) {
+        // while crafting, the other recipes shrink off the table and leave the work alone (shrinking, not fading: TACZ's
+        // 3D models ignore the fading alpha, so they would linger at full colour and then pop)
+        double crafting = moveTime();
+        float gridShown = crafting < 0 ? 1f : 1f - (float) Math.min(1, crafting / GRID_FADE);
+        for (int i = 0; gridShown > 0 && i < visible.size(); i++) {
             Tacz.Recipe recipe = visible.get(i);
             boolean chosen = selected != null && selected.id().equals(recipe.id());
-            float scale = layout.scale() * pageScale * (i == hovered || chosen ? 1.15f : 1f);
+            float scale = layout.scale() * pageScale * (i == hovered || chosen ? 1.15f : 1f) * ease(gridShown);
             float opacity = chosen || craftable.contains(recipe.id()) ? 1f : 0.4f;
             Vec3 at = cell(i);
             pose.pushPose();
@@ -510,10 +638,11 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
         // the chosen part, and where its materials go while crafting (they slide in and shrink away)
         Vec3 part = showcase, into = showcase;
         float partScale = showScale, partTilt = hoverTilt;
-        boolean showPart = true;
+        boolean showPart = true, keepMaterials = false;
         double gather = 0;
         if (t >= 0 && layout == WIDE) {
-            // The forge: the part lands on the desk, takes three blows, then rises before the camera.
+            // The forge: the preview sinks into the desk and the materials pile there for three blows; the last one
+            // hides the work in smoke and the finished part rises out of it before the camera.
             into = anvil();
             gather = Math.min(1, t / FORGE_LAND);
             float lying = layout.scale() * selectedScale;
@@ -521,12 +650,11 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
             if (t < FORGE_LAND) {
                 float e = ease(gather);
                 part = showcase.lerp(anvil(), e);
-                partScale = Mth.lerp(e, showScale, lying);
+                partScale = Mth.lerp(e, showScale, 0);
                 partTilt = Mth.lerp(e, hoverTilt, 0);
             } else if (t < beat) {
-                part = anvil();
-                partScale = lying;
-                partTilt = 0;
+                showPart = false;
+                keepMaterials = true;
             } else {
                 float e = ease((t - beat) / (FORGE_LENGTH - beat));
                 part = anvil().lerp(at(0, layout.camOut() - 0.45, layout.camUp() - 0.2), e);
@@ -535,8 +663,9 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
             }
             double swing = swing(t);
             if (swing >= 0) {
+                // in the real hand, which springs after its target (hammer(swing)[0]), so the two never drift apart
                 Vec3[] hammer = hammer(swing);
-                CraftFx.drawHammer(pose, buffers, eye, hammer[0], hammer[1], hammer[2], light);
+                CraftFx.drawHammer(pose, buffers, eye, HandsAccessor.cinematicTacz$position(true), hammer[1], hammer[2], 1, light);
             }
         } else if (t >= 0 && layout == SINGLE) {
             // The press: the materials go into its mouth; after the strokes the rounds tumble out onto the mat.
@@ -553,10 +682,19 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
                 ItemPlacer.render(pose, buffers, eye, selected.output(), at, side, 300 + k, 0.35f, 0, light);
             }
         } else if (t >= 0) {
-            // The tall bench: the materials gather into the part, which pops.
-            gather = Math.min(1, t / GATHER_BEAT);
-            if (t >= GATHER_BEAT) {
-                partScale *= (float) (1 + 0.3 * Math.sin((t - GATHER_BEAT) / (GATHER_LENGTH - GATHER_BEAT) * Math.PI));
+            // The attachment bench: the materials gather into the part, the tools work it, it pops.
+            gather = Math.min(1, t / FIT_GATHER);
+            if (t >= FIT_POP) {
+                partScale *= (float) (1 + 0.3 * Math.sin((t - FIT_POP) / (FIT_LENGTH - FIT_POP) * Math.PI));
+            }
+            Vec3 hand = HandsAccessor.cinematicTacz$position(true);
+            double hammer = fitSwing(t - toolFrom(false)), screw = t - toolFrom(true);
+            if (hammer >= 0) {
+                Vec3[] tool = tapHammer(hammer);
+                CraftFx.drawHammer(pose, buffers, eye, hand, tool[1], tool[2], (float) TAP_SIZE, light);
+            } else if (fitSwing(screw) >= 0) {
+                Vec3[] tool = screwdriver(screw);
+                CraftFx.drawScrewdriver(pose, buffers, eye, hand, tool[1], tool[2], light);
             }
         }
         if (showPart) {
@@ -566,7 +704,7 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
         List<Tacz.Input> inputs = selected.inputs();
         for (int i = 0; i < inputs.size(); i++) {
             ItemStack[] options = inputs.get(i).items().getItems();
-            if (options.length == 0 || gather >= 1) continue;
+            if (options.length == 0 || (gather >= 1 && !keepMaterials)) continue;
             ItemStack shown = options[(int) Scene.clock() % options.length];
             Vec3 point = ingredientPoint(i, inputs.size()).lerp(into, gather * gather);
             ItemPlacer.render(pose, buffers, eye, shown, point, side, 200 + i, (float) (layout.ingScale() * (1 - gather * 0.7)), hoverTilt, light);

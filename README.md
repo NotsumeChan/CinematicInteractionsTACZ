@@ -91,7 +91,7 @@ Java 21. The Cinematic Interactions JAR is not on any Maven repository: build it
 ```sh
 (cd ../CinematicInteractions/fabric/1.21.1 && sh gradlew remapJar)
 cp "../CinematicInteractions/fabric/1.21.1/build/libs/Cinematic Interaction-Fabric-1.21.1-0.18.25.jar" libs/cinematic-fabric-1.21.1-0.18.25.jar
-./gradlew build        # JAR in build/libs/
+./gradlew build        # JAR in versions/1.21.1/build/libs/
 ./gradlew runClient    # test game with TACZ and Cinematic Interactions
 ```
 

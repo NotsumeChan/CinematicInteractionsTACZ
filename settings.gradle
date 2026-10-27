@@ -1,7 +1,22 @@
 pluginManagement {
     repositories {
         maven { url = 'https://maven.fabricmc.net/' }
+        maven { url = 'https://maven.kikugie.dev/releases' }
         gradlePluginPortal()
     }
 }
-rootProject.name = 'cinematic-tacz-fabric-1.21.1'
+
+plugins {
+    id 'dev.kikugie.stonecutter' version '0.9.8'
+}
+
+// Stonecutter: one codebase, one node per Minecraft version (and later loader). Each node is built by build.gradle in
+// versions/<node>/; code that differs between nodes sits behind //? comments. The active node is set in stonecutter.gradle.
+stonecutter {
+    create(rootProject) {
+        versions '1.21.1'
+        vcsVersion = '1.21.1'
+    }
+}
+
+rootProject.name = 'cinematic-tacz'

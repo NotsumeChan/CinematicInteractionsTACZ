@@ -3,6 +3,9 @@ package dev.notsume.cinematictacz.tacz;
 import com.tacz.guns.api.DefaultAssets;
 import com.tacz.guns.api.TimelessAPI;
 import com.tacz.guns.api.client.gameplay.IClientPlayerGunOperator;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Axis;
+import com.tacz.guns.block.AbstractGunSmithTableBlock;
 import com.tacz.guns.block.entity.GunSmithTableBlockEntity;
 import com.tacz.guns.client.gui.GunSmithTableScreen;
 import com.tacz.guns.client.model.bedrock.BedrockPart;
@@ -10,16 +13,34 @@ import com.tacz.guns.network.message.ClientMessageCraft;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.Mth;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
+import org.joml.Vector3f;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /** The client side of {@link Tacz}: TACZ's craft packet, table window, table models and gun animations. */
 public final class TaczClient {
     private TaczClient() {}
 
-    // ponytail: the default gunpack's bone name; a gunpack whose ammo bench has no "loader" just gets no press stroke
-    /** The reloading press of the ammo bench's model. The whole press is this one bone, its base included. */
+    // ponytail: the default gunpack's bone and cubes; a gunpack whose ammo bench differs just gets no press stroke
+    /** The reloading press of the ammo bench's model. The whole press is this one bone, its frame included. */
     private static final String PRESS_BONE = "loader";
+    /*
+     * TACZ makes each turned cube a child part pivoted on it, placed in pixels from the bone's pivot, bedrock
+     * (-3, 18.23, 12.67), with y turned over (+y down). The ram: the column's cubes (shaft, cap, collars), all on the
+     * column's axis, bedrock (x -3, z 6.5). The lever: its rod and foot turn on its hinge, bedrock (y 10.38, z 9.42), and
+     * its knob is the bone's pivot itself.
+     */
+    private static final float RAM_Z = 6.5f - 12.66936f;
+    private static final float HINGE_Y = 18.23148f - 10.37851f, HINGE_Z = 9.41655f - 12.66936f;
+    /** How far (blocks) the ram goes down and how far (radians) the lever turns down at the bottom of a stroke. */
+    private static final float RAM_TRAVEL = 1.5f / 16, LEVER_SWING = (float) Math.toRadians(30);
 
     /** Asks the server to craft {@code recipe} in the open table menu {@code menuId}, as TACZ's own Craft button does. */
     public static void craft(ResourceLocation recipe, int menuId) {
@@ -36,15 +57,65 @@ public final class TaczClient {
     }
 
     /**
-     * Sets how far down (blocks) the press of {@code table}'s model is pushed for the next draw. The model is shared by
-     * every table of its type, so a stroke is set just before one table is drawn and undone right after.
+     * Sets how far through a stroke ({@code stroke} 0 up .. 1 down) the press of {@code table}'s model is for the next
+     * draw: the ram goes down and the lever turns down with it. The model is shared by every table of its type, so a
+     * stroke is set just before one table is drawn and undone (0) right after.
      */
-    public static void press(GunSmithTableBlockEntity table, float depth) {
+    public static void press(GunSmithTableBlockEntity table, float stroke) {
+        BedrockPart press = pressBone(table);
+        if (press == null) return;
+        float angle = -LEVER_SWING * stroke, cos = Mth.cos(angle), sin = Mth.sin(angle);
+        for (BedrockPart part : press.children) {
+            if (Math.abs(part.x) > 0.05f) continue;
+            if (Math.abs(part.z - RAM_Z) < 0.05f) {
+                part.offsetY = RAM_TRAVEL * stroke;
+            } else if (isLever(part)) {
+                // turned round the hinge: the pivot swings round it and the cube turns with it
+                float y = part.y - HINGE_Y, z = part.z - HINGE_Z;
+                part.offsetY = (y * cos - z * sin - y) / 16;
+                part.offsetZ = (y * sin + z * cos - z) / 16;
+                part.xRot = part.getInitRotX() + angle;
+            }
+        }
+    }
+
+    /** Where the knob of the press's lever is in the world, {@code stroke} (0..1) through a stroke; null without one. */
+    @Nullable
+    public static Vec3 leverKnob(Level level, BlockPos root, float stroke) {
+        if (!(level.getBlockEntity(root) instanceof GunSmithTableBlockEntity table)
+                || !(table.getBlockState().getBlock() instanceof AbstractGunSmithTableBlock block)) return null;
+        BedrockPart press = pressBone(table);
+        if (press == null) return null;
+        BedrockPart knob = null;
+        for (BedrockPart part : press.children) {
+            if (Math.abs(part.x) < 0.05f && Math.abs(part.y) < 0.05f && Math.abs(part.z) < 0.05f) knob = part;
+        }
+        if (knob == null) return null;
+        // TACZ's table renderer, then the bones down to the knob, whose pivot is its centre
+        PoseStack pose = new PoseStack();
+        pose.translate(root.getX() + 0.5, root.getY() + 1.5, root.getZ() + 0.5);
+        pose.mulPose(Axis.ZN.rotationDegrees(180));
+        pose.mulPose(Axis.YN.rotationDegrees(block.parseRotation(table.getBlockState().getValue(AbstractGunSmithTableBlock.FACING))));
+        List<BedrockPart> chain = new ArrayList<>();
+        for (BedrockPart part = press; part != null; part = part.getParent()) chain.add(0, part);
+        press(table, stroke);
+        for (BedrockPart part : chain) part.translateAndRotateAndScale(pose);
+        knob.translateAndRotateAndScale(pose);
+        press(table, 0);
+        Vector3f at = pose.last().pose().transformPosition(new Vector3f());
+        return new Vec3(at.x, at.y, at.z);
+    }
+
+    private static boolean isLever(BedrockPart part) {
+        boolean onHinge = Math.abs(part.y - HINGE_Y) < 0.05f && Math.abs(part.z - HINGE_Z) < 0.05f;
+        boolean knob = Math.abs(part.y) < 0.05f && Math.abs(part.z) < 0.05f;
+        return onHinge || knob;
+    }
+
+    @Nullable
+    private static BedrockPart pressBone(GunSmithTableBlockEntity table) {
         ResourceLocation type = table.getId() == null ? DefaultAssets.DEFAULT_BLOCK_ID : table.getId();
-        TimelessAPI.getClientBlockIndex(type).ifPresent(index -> {
-            BedrockPart press = index.getModel() == null ? null : index.getModel().getNode(PRESS_BONE);
-            // the model is drawn upside down (TACZ turns it 180 degrees round Z): its +y points down in the world
-            if (press != null) press.offsetY = depth;
-        });
+        return TimelessAPI.getClientBlockIndex(type)
+                .map(index -> index.getModel() == null ? null : index.getModel().getNode(PRESS_BONE)).orElse(null);
     }
 }

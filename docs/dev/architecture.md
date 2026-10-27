@@ -12,13 +12,15 @@ src/main/java/dev/notsume/cinematictacz/
   client/GunSmithScene.java     the scene (extends AddonMenuStation<AbstractContainerMenu>)
   client/CraftFx.java           effects: press stroke state, smoke/sparks, Cinematic Interactions' hammer prop
   client/AfterCraft.java        after forging: select the new gun, then inspect
+  mixin/HandsAccessor.java      Cinematic Interactions' real hand position (package-private there), for the hammer
   mixin/MinecraftMixin.java     TACZ's table window only behind a scene ("step closer" otherwise)
   mixin/KeyMappingMixin.java    a mouse button reaches every key mapping on it when one is TACZ's (shoot/aim)
   mixin/LanguageManagerMixin.java  es_* (es_cl, es_mx …) loads es_es before en_us
+  mixin/GunSmithTableBlockEntityMixin.java  (both sides) a table's second block answers with its root's table type
   mixin/TaczTableRendererMixin.java  optional (require 0): ammo press stroke while crafting
 ```
 
-Only `tacz/` and `TaczTableRendererMixin` import `com.tacz.*`. A different TACZ port is adapted there.
+Only `tacz/`, `TaczTableRendererMixin` and `GunSmithTableBlockEntityMixin` import `com.tacz.*`. A different TACZ port is adapted there.
 
 ## How a scene works
 
@@ -43,13 +45,17 @@ Only `tacz/` and `TaczTableRendererMixin` import `com.tacz.*`. A different TACZ 
 
 | Table | Timeline (`moveTime()` seconds) |
 |---|---|
-| WIDE forge | 0–0.4 part lands on `anvil()`, materials gather · blows at 0.7/1.1/1.5 (sparks, smoke, anvil sound), the last sends the craft · 1.5–2.2 part rises · then `Scene.leave()` + `AfterCraft` selects the new gun and calls `TaczClient.inspect` |
-| SINGLE press | materials into `pressMouth()` · strokes at 0.6/1.0 (`CraftFx.press`, smoke, piston sound), the second crafts · 4 rounds fall to the mat |
-| TALL | materials gather into the hovering part, which pops |
+| WIDE forge | 0–0.4 the preview sinks into `anvil()`, materials gather and stay there · blows at 0.7/1.1/1.5 (sparks, smoke, anvil sound), the last (big smoke) sends the craft and `AfterCraft.expect` · 1.5–1.9 the finished part rises out of the smoke, then `Scene.leave()` · `AfterCraft` selects the new gun as soon as it is picked up (TACZ draws it during the outro) and calls `TaczClient.inspect` once the scene is over |
+| SINGLE press | materials into `pressMouth()` · strokes at 0.6/1.0 (`CraftFx.press`: ram down, lever turned down round its hinge; smoke, piston sound), the right hand on the lever knob (`TaczClient.leverKnob`) from 0.3 s · 4 rounds fall to the mat · crafts at the end (1.7) |
+| TALL | 0–0.4 materials gather into the hovering part · two steps of 0.75 in random order (`screwFirst`): small hammer, three taps (`tapHammer`, sparks); screwdriver (own prop `models/prop/screwdriver.json`), three quarter turns with clicks · 1.9 pop (smoke, sparks) · crafts at the end (2.2) |
 
 `beforeFrame()` lands blows/strokes on time; `handsOverride()` drives the hands while forging.
 
 ## Gotchas found
+
+- TACZ gives both blocks of a two-block table a block entity, but sets the table type only on the root's. Cinematic
+  Interactions opens the **clicked** block's menu, so the upper half of the attachment bench opened a default
+  (gun smith table) menu: "no recipes". `GunSmithTableBlockEntityMixin` makes the second block report its root's type.
 
 - Fabric reads TACZ `0.7.1-forge1.1.8-hotfix2` as a **pre-release** of 0.7.1: the dependency is
   `>=0.7.1-alpha <0.8.0-alpha` (checked with Fabric Loader's own `VersionPredicate`).

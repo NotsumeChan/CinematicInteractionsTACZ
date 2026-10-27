@@ -26,7 +26,7 @@ dependencies {
     modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
 
     // Never bundled: players install the hosts themselves.
-    modImplementation files("libs/${cinematic_jar}")
+    modImplementation files(rootProject.file("libs/${cinematic_jar}"))
     modCompileOnly "maven.modrinth:tacz-refabricated:${tacz_version}"
     modCompileOnly "maven.modrinth:forge-config-api-port:${fcap_version}"
     hostMods "maven.modrinth:tacz-refabricated:${tacz_version}"
@@ -35,8 +35,9 @@ dependencies {
 
 loom {
     runs {
-        client { client(); runDir 'run/client' }
-        server { server(); runDir 'run/server'; programArg '--nogui' }
+        // one game folder for every node (runDir is relative to versions/<node>/)
+        client { client(); runDir '../../run/client' }
+        server { server(); runDir '../../run/server'; programArg '--nogui' }
     }
 }
 
@@ -45,7 +46,7 @@ loom {
 ['client', 'server'].each { side ->
     def copyHosts = tasks.register("${side}HostMods", Copy) {
         from configurations.hostMods
-        into "run/${side}/mods"
+        into rootProject.file("run/${side}/mods")
     }
     tasks.matching { it.name == "run${side.capitalize()}" }.configureEach { dependsOn copyHosts }
 }
