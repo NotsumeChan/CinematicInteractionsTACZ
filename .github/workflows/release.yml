@@ -20,8 +20,10 @@ env:
   # commit. Keep it in step with cinematic_jar in versions/<node>/gradle.properties.
   CINEMATIC_REPO: dcvke/CinematicInteractions
   CINEMATIC_COMMIT: bb1bca1
-  # Its targets our nodes build against
-  CINEMATIC_TARGETS: 1.20.1-fabric 1.21.1-fabric 1.21.1-neoforge 1.20.1-forge
+  # The nodes released (each built against Cinematic Interactions' target of the same name).
+  # ponytail: 1.20.1-forge left out: Cinematic Interactions' 1.20.1-forge target does not build on GitHub's runners at
+  # bb1bca1 ("variable o is already defined", its own workflow too; it builds locally). Add it back once it does.
+  CINEMATIC_TARGETS: 1.20.1-fabric 1.21.1-fabric 1.21.1-neoforge
 
 jobs:
   build:
@@ -55,7 +57,7 @@ jobs:
           done
 
       - name: Build add-on
-        run: gradle build --no-daemon
+        run: gradle $(for t in $CINEMATIC_TARGETS; do echo ":$t:build"; done) --no-daemon
 
       - name: Publish nightly
         if: github.ref_name == 'nightly'

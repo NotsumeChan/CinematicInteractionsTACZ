@@ -55,7 +55,8 @@ export JAVA_HOME=$PWD/../.jdk/current           # fish: set -x JAVA_HOME $PWD/..
   `stonecutter.gradle`'s `replacements`. Each node has its own dev games, `run/<node>/client|server`.
 - Releases: `.github/workflows/release.yml` builds on push to `nightly` (rolling pre-release `nightly`) and `main`
   (release `v<mod_version>`, skipped if it exists). It builds Cinematic Interactions from the commit pinned there: keep
-  it in step with `cinematic_jar`.
+  it in step with `cinematic_jar`. The `1.20.1-forge` node is left out of it (`CINEMATIC_TARGETS`): Cinematic
+  Interactions' Forge target does not build on GitHub's runners; its JAR is built locally.
 - Feeding a script to `runServer` through stdin makes the server read the rest as console commands: run it alone.
 
 More: [docs/dev/architecture.md](docs/dev/architecture.md), [docs/dev/roadmap.md](docs/dev/roadmap.md),
