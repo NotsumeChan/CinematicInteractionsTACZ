@@ -35,8 +35,12 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
+import org.joml.Matrix3f;
+import org.joml.Quaternionf;
+import org.joml.Vector3f;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -51,11 +55,24 @@ import java.util.Set;
  */
 public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu> {
     private static final Vec3 UP = new Vec3(0, 1, 0);
-    /** The forge (gun smith table): materials on the desk, three hammer blows, the last one crafts; the part rises after. */
-    private static final double[] BLOWS = {0.7, 1.1, 1.5};
-    private static final double FORGE_LENGTH = 1.9, FORGE_LAND = 0.4, HAMMER_FROM = 0.3;
+    /**
+     * The forge (gun smith table): materials on the desk; the hand takes the table's own hammer off its tool wall, three
+     * blows, hangs it back; takes the drill off the desk, drills two holes, lays it back; then smoke and fire hide the
+     * work (FORGED crafts) and the finished part rises.
+     */
+    private static final double[] BLOWS = {1.1, 1.5, 1.9}, HOLES = {3.05, 3.45};
+    private static final double FORGE_LAND = 0.4, FORGED = 4.05, FORGE_LENGTH = 4.45;
+    /** The hammer: the hand reaches for it, takes it, has it on the work (the blows' swing starts), has it back on the wall. */
+    private static final double HAMMER_REACH = 0.1, HAMMER_TAKE = 0.4, HAMMER_FROM = 0.7, HAMMER_BACK = 2.3;
+    /** The drill: taken, on the first hole, done with the last, back on the desk. */
+    private static final double DRILL_TAKE = 2.55, DRILL_FROM = 2.85, DRILL_TO = 3.6, DRILL_BACK = 3.95;
+    /** Which way the drill's bit points while drilling: down, away from the player, to the left (not normalised). */
+    private static final double[] DRILL_TILT = {0.75, 0.35, 0.5};
+    private static final double[] FORGE_BEATS = concat(BLOWS, HOLES, new double[]{FORGED});
     /** The handle's pitch (degrees) at a blow and fully raised. */
     private static final double HAMMER_IMPACT = -12, HAMMER_RAISED = 75;
+    /** From the middle of the table hammer's head to its striking face (half its 3 px). */
+    private static final double HAMMER_FACE = 1.5 / 16;
     /** How high (blocks) the hand lifts the hammer between blows; it also draws back a third of that. */
     private static final double HAMMER_LIFT = 0.3;
     /** The press (ammo bench): the materials go in, two strokes; the rounds tumble out after, then it crafts. */
@@ -154,6 +171,9 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
     private int landed;
     /** A gun was forged: once the move is over the scene closes and the gun is drawn and inspected. */
     private boolean drawAfter;
+    /** How the forge's own hammer and drill lie on the table, read when a forging starts; null on a model without them. */
+    @Nullable
+    private TaczClient.ToolRest hammerRest, drillRest;
 
     public GunSmithScene(BlockPos pos, BlockState state, Direction side) {
         super(pos, side, Tacz.menuClass(), 0);
@@ -432,7 +452,10 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
         if (layout == WIDE) {
             sound(SoundEvents.ARMOR_EQUIP_IRON.value(), 0.5f, 0.8f);
             drawAfter = true;
-            startMove(FORGE_LENGTH, BLOWS[BLOWS.length - 1], () -> {
+            ClientLevel level = Minecraft.getInstance().level;
+            hammerRest = level == null ? null : TaczClient.toolRest(level, root, TaczClient.Tool.HAMMER);
+            drillRest = level == null ? null : TaczClient.toolRest(level, root, TaczClient.Tool.DRILL);
+            startMove(FORGE_LENGTH, FORGED, () -> {
                 AfterCraft.expect(recipe.output());
                 TaczClient.craft(recipe.id(), menuId);
             });
@@ -451,8 +474,12 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
     public void beforeFrame() {
         double t = moveTime();
         if (t >= 0 && layout == TALL) CraftFx.printer(root, (float) plateDrop(t));
+        if (t >= 0 && layout == WIDE) {
+            Held held = heldTool(t);
+            CraftFx.holding(root, held == null ? null : held.tool());
+        }
         if (t >= 0) {
-            double[] hits = layout == WIDE ? BLOWS : layout == SINGLE ? STROKES : PRINT_BEATS;
+            double[] hits = layout == WIDE ? FORGE_BEATS : layout == SINGLE ? STROKES : PRINT_BEATS;
             while (landed < hits.length && t >= hits[landed]) land(landed++);
         } else if (drawAfter) {
             drawAfter = false;
@@ -462,10 +489,21 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
 
     private void land(int hit) {
         if (layout == WIDE) {
-            CraftFx.sparks(anvil(), 8);
-            // the last blow's smoke covers the materials turning into the finished part
-            CraftFx.smoke(anvil(), hit == BLOWS.length - 1 ? 24 : 3);
-            sound(SoundEvents.ANVIL_USE, 0.35f, 1.1f + 0.1f * hit);
+            int hole = hit - BLOWS.length;
+            if (hole < 0) {
+                CraftFx.sparks(anvil(), 8);
+                CraftFx.smoke(anvil(), 3);
+                sound(SoundEvents.ANVIL_USE, 0.35f, 1.1f + 0.1f * hit);
+            } else if (hole < HOLES.length) {
+                CraftFx.sparks(hole(hole), 5);
+                CraftFx.smoke(hole(hole), 2);
+                sound(SoundEvents.GRINDSTONE_USE, 0.35f, 1.7f);
+            } else {
+                // the smoke and fire cover the materials turning into the finished part
+                CraftFx.smoke(anvil(), 24);
+                CraftFx.fire(anvil(), 10);
+                sound(SoundEvents.FIRE_EXTINGUISH, 0.4f, 1f);
+            }
         } else if (layout == SINGLE) {
             CraftFx.smoke(pressHead(), 6);
             sound(SoundEvents.PISTON_EXTEND, 0.45f, 1.4f);
@@ -515,47 +553,118 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
         return at(0, 0.06, 1.28 - TaczClient.PLATE_TRAVEL * drop);
     }
 
+    private static double[] concat(double[]... parts) {
+        return Arrays.stream(parts).flatMapToDouble(Arrays::stream).toArray();
+    }
+
+    /** Drill hole {@code k}'s point on the work (0 and 1, or between while moving over). */
+    private Vec3 hole(double k) {
+        return anvil().add(right().scale(-0.06 + 0.12 * k)).add(0, 0.03, 0);
+    }
+
+    /** A tool in the hand: where its grip is and how it is turned from the way it lies on the table. */
+    private record Held(TaczClient.Tool tool, Vec3 grip, Quaternionf turn) {}
+
+    /** The tool in the right hand at {@code t}, or null when the hand holds none. */
+    @Nullable
+    private Held heldTool(double t) {
+        if (hammerRest != null && t >= HAMMER_TAKE && t <= HAMMER_BACK) {
+            return carried(TaczClient.Tool.HAMMER, hammerRest, t, HAMMER_TAKE, HAMMER_FROM, BLOWS[BLOWS.length - 1], HAMMER_BACK);
+        }
+        if (drillRest != null && t >= DRILL_TAKE && t <= DRILL_BACK) {
+            return carried(TaczClient.Tool.DRILL, drillRest, t, DRILL_TAKE, DRILL_FROM, DRILL_TO, DRILL_BACK);
+        }
+        return null;
+    }
+
+    /** A tool taken from its rest at {@code take}, at work from {@code from} to {@code to}, back on its rest at {@code back}. */
+    private Held carried(TaczClient.Tool tool, TaczClient.ToolRest rest, double t, double take, double from, double to, double back) {
+        if (t >= from && t <= to) return working(tool, t);
+        boolean going = t < from;
+        Held work = working(tool, going ? from : to);
+        // 0 on the table, 1 at work: lifted on an arc and turned on the way
+        float u = ease(going ? (t - take) / (from - take) : (back - t) / (back - to));
+        Vec3 grip = rest.grip().lerp(work.grip(), u).add(0, 0.12 * Math.sin(Math.PI * u), 0);
+        return new Held(tool, grip, new Quaternionf().slerp(work.turn(), u));
+    }
+
+    private Held working(TaczClient.Tool tool, double t) {
+        if (tool == TaczClient.Tool.HAMMER) {
+            Vec3[] hammer = hammer(swing(t));
+            return new Held(tool, hammer[0], turn(hammerRest.axis(), hammerRest.across(), hammer[1], hammer[2]));
+        }
+        // the bit down on a slant, away and to the left, so the body sits back towards the right hand and out of the
+        // view; the grip back to the player; in on each hole, over to the next between them
+        double push = 0, half = 0.15;
+        for (double hole : HOLES) push = Math.max(push, Math.max(0, Math.sin(Math.PI * ((t - hole) / (2 * half) + 0.5))));
+        double k = ease(Math.clamp((t - HOLES[0] - half) / (HOLES[1] - HOLES[0] - 2 * half), 0, 1));
+        Vec3 tip = hole(k).add(0, 0.05 - 0.045 * push, 0);
+        Vec3 bit = UP.scale(-DRILL_TILT[0]).add(side().scale(-DRILL_TILT[1])).add(right().scale(-DRILL_TILT[2]));
+        Quaternionf turn = turn(drillRest.axis(), drillRest.across(), bit, side());
+        Vector3f reach = turn.transform(drillRest.end().subtract(drillRest.grip()).toVector3f());
+        return new Held(tool, tip.subtract(new Vec3(reach)), turn);
+    }
+
+    /** The turn taking a tool's axes {@code a}, {@code b} (as it lies) to {@code toA}, {@code toB}. */
+    private static Quaternionf turn(Vec3 a, Vec3 b, Vec3 toA, Vec3 toB) {
+        return frame(toA, toB).mul(frame(a, b).conjugate());
+    }
+
+    /** The rotation taking x to {@code a}, y to {@code b} (squared to {@code a}) and z to their cross. */
+    private static Quaternionf frame(Vec3 a, Vec3 b) {
+        Vec3 x = a.normalize(), y = b.subtract(x.scale(b.dot(x))).normalize(), z = x.cross(y);
+        return new Matrix3f((float) x.x, (float) x.y, (float) x.z, (float) y.x, (float) y.y, (float) y.z,
+                (float) z.x, (float) z.y, (float) z.z).getNormalizedRotation(new Quaternionf());
+    }
+
+    /** The right hand's target while forging: on a tool, reaching for one, or null outside the work. */
+    @Nullable
+    private Vec3 forgeHand(double t) {
+        Held held = heldTool(t);
+        if (held != null) return held.grip();
+        if (hammerRest == null) return null;
+        if (t >= HAMMER_REACH && t < HAMMER_TAKE) {
+            return rest(true).lerp(hammerRest.grip(), ease((t - HAMMER_REACH) / (HAMMER_TAKE - HAMMER_REACH)));
+        }
+        if (drillRest != null && t > HAMMER_BACK && t < DRILL_TAKE) {
+            return hammerRest.grip().lerp(drillRest.grip(), ease((t - HAMMER_BACK) / (DRILL_TAKE - HAMMER_BACK)));
+        }
+        return null;
+    }
+
     /** The hammer's swing while forging, 0 (on the work) to 1 (raised), or -1 outside the blows. */
     private double swing(double t) {
-        if (t < HAMMER_FROM || t > BLOWS[BLOWS.length - 1] + 0.05) return -1;
+        if (t < HAMMER_FROM || t > BLOWS[BLOWS.length - 1]) return -1;
         return Math.abs(Math.sin(Math.PI * (t - HAMMER_FROM) / (BLOWS[0] - HAMMER_FROM)));
     }
 
     /**
-     * The hammer's grip and pose for a swing. As in Cinematic Interactions' anvil, the handle leaves the right hand on a
-     * slant, forwards and a little to the left; at a blow it dips just below level onto the work, raised the head turns
-     * up round the wrist.
+     * The table hammer's grip and pose for a swing: grip, handle (grip to head), head's length. As in Cinematic
+     * Interactions' anvil, the handle leaves the right hand on a slant, forwards and a little to the left; at a blow it
+     * dips just below level and the head's face lands on the work, raised the head turns up round the wrist while the
+     * hand lifts HAMMER_LIFT and draws back a third of that.
      */
     private Vec3[] hammer(double swing) {
         Vec3 slant = side().scale(-0.3).add(right().scale(-0.12)).normalize();
-        return hammer(swing, anvil(), UP, slant, side(), 1, HAMMER_LIFT);
-    }
-
-    /**
-     * A hammer of {@code size} (1: the forge's) striking {@code work} along -{@code up}, its handle leaving the hand along
-     * {@code slant} (across {@code up}); raised, the hand lifts {@code lift} along {@code up} and a third of that along
-     * {@code back}.
-     */
-    private static Vec3[] hammer(double swing, Vec3 work, Vec3 up, Vec3 slant, Vec3 back, double size, double lift) {
-        Vec3 along = handle(slant, up, HAMMER_IMPACT), headAxis = headAxis(slant, up, HAMMER_IMPACT);
-        // the head's striking edge lands on the work
-        Vec3 grip = work.subtract(along.scale(CraftFx.HAMMER_REACH * size)).add(headAxis.scale(CraftFx.HAMMER_ACROSS * size))
-                .add(up.scale(lift * swing)).add(back.scale(lift * 0.35 * swing));
+        Vec3 along = handle(slant, HAMMER_IMPACT), headAxis = headAxis(slant, HAMMER_IMPACT);
+        double reach = hammerRest.end().distanceTo(hammerRest.grip());
+        Vec3 grip = anvil().subtract(along.scale(reach)).add(headAxis.scale(HAMMER_FACE))
+                .add(UP.scale(HAMMER_LIFT * swing)).add(side().scale(HAMMER_LIFT * 0.35 * swing));
         double angle = HAMMER_IMPACT + (HAMMER_RAISED - HAMMER_IMPACT) * swing;
-        return new Vec3[]{grip, handle(slant, up, angle), headAxis(slant, up, angle)};
+        return new Vec3[]{grip, handle(slant, angle), headAxis(slant, angle)};
     }
 
-    private static Vec3 handle(Vec3 slant, Vec3 up, double degrees) {
+    private static Vec3 handle(Vec3 slant, double degrees) {
         double a = Math.toRadians(degrees);
-        return slant.scale(Math.cos(a)).add(up.scale(Math.sin(a)));
+        return slant.scale(Math.cos(a)).add(UP.scale(Math.sin(a)));
     }
 
-    private static Vec3 headAxis(Vec3 slant, Vec3 up, double degrees) {
+    private static Vec3 headAxis(Vec3 slant, double degrees) {
         double a = Math.toRadians(degrees);
-        return up.scale(Math.cos(a)).subtract(slant.scale(Math.sin(a)));
+        return UP.scale(Math.cos(a)).subtract(slant.scale(Math.sin(a)));
     }
 
-    /** While forging: the right hand swings the hammer, the left holds the part down. */
+    /** While forging: the right hand takes and works the tools, the left holds the part down. */
     @Override
     @Nullable
     public Vec3[] handsOverride() {
@@ -572,9 +681,9 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
             Vec3 touch = screen().add(side().scale(0.04 - press));
             return new Vec3[]{rest(true).lerp(touch, Math.min(1, bend(t) * 1.6)), rest(false)};
         }
-        double swing = layout == WIDE ? swing(t) : -1;
-        if (swing < 0) return null;
-        return new Vec3[]{hammer(swing)[0], anvil().add(right().scale(-0.2)).add(side().scale(0.05)).add(0, 0.04, 0)};
+        Vec3 hand = layout == WIDE ? forgeHand(t) : null;
+        if (hand == null) return null;
+        return new Vec3[]{hand, anvil().add(right().scale(-0.2)).add(side().scale(0.05)).add(0, 0.04, 0)};
     }
 
     /** Fast blows and strokes: the hands follow their targets tightly, as Cinematic Interactions' anvil does. */
@@ -639,7 +748,7 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
             into = anvil();
             gather = Math.min(1, t / FORGE_LAND);
             float lying = layout.scale() * selectedScale;
-            double beat = BLOWS[BLOWS.length - 1];
+            double beat = FORGED;
             if (t < FORGE_LAND) {
                 float e = ease(gather);
                 part = showcase.lerp(anvil(), e);
@@ -654,11 +763,19 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
                 partScale = Mth.lerp(e, lying, showScale * 1.2f);
                 partTilt = Mth.lerp(e, 0, hoverTilt);
             }
-            double swing = swing(t);
-            if (swing >= 0) {
-                // in the real hand, which springs after its target (hammer(swing)[0]), so the two never drift apart
-                Vec3[] hammer = hammer(swing);
-                CraftFx.drawHammer(pose, buffers, eye, HandsAccessor.cinematicTacz$position(true), hammer[1], hammer[2], 1, light);
+            Held held = heldTool(t);
+            ClientLevel level = Minecraft.getInstance().level;
+            if (held != null && level != null) {
+                // the table's own tool, out of its model (which hides it meanwhile), in the real hand: that springs
+                // after its target (forgeHand), so the two never drift apart
+                Vec3 hand = HandsAccessor.cinematicTacz$position(true);
+                Vec3 grip = (held.tool() == TaczClient.Tool.HAMMER ? hammerRest : drillRest).grip();
+                pose.pushPose();
+                pose.translate(hand.x - eye.x, hand.y - eye.y, hand.z - eye.z);
+                pose.mulPose(held.turn());
+                pose.translate(-grip.x, -grip.y, -grip.z);
+                TaczClient.drawTool(level, root, held.tool(), pose, buffers, light);
+                pose.popPose();
             }
         } else if (t >= 0 && layout == SINGLE) {
             // The press: the materials go into its mouth; after the strokes the rounds tumble out onto the mat.

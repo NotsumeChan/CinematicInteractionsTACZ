@@ -10,9 +10,9 @@ src/main/java/dev/notsume/cinematictacz/
   tacz/TaczClient.java          TACZ bridge (client): craft packet, table window check, inspect, press stroke
   client/CinematicTaczClient.java  client init: AddonScenes per table, AfterCraft tick
   client/GunSmithScene.java     the scene (extends AddonMenuStation<AbstractContainerMenu>)
-  client/CraftFx.java           effects: press stroke state, smoke/sparks, Cinematic Interactions' hammer prop
+  client/CraftFx.java           effects: press stroke, printer plate and forge tool states, smoke/sparks/fire
   client/AfterCraft.java        after forging: select the new gun, then inspect
-  mixin/HandsAccessor.java      Cinematic Interactions' real hand position (package-private there), for the hammer
+  mixin/HandsAccessor.java      Cinematic Interactions' real hand position (package-private there), for the forge's tools
   mixin/MinecraftMixin.java     TACZ's table window only behind a scene ("step closer" otherwise)
   mixin/KeyMappingMixin.java    a mouse button reaches every key mapping on it when one is TACZ's (shoot/aim)
   mixin/LanguageManagerMixin.java  es_* (es_cl, es_mx …) loads es_es before en_us
@@ -45,7 +45,7 @@ Only `tacz/`, `TaczTableRendererMixin` and `GunSmithTableBlockEntityMixin` impor
 
 | Table | Timeline (`moveTime()` seconds) |
 |---|---|
-| WIDE forge | 0–0.4 the preview sinks into `anvil()`, materials gather and stay there · blows at 0.7/1.1/1.5 (sparks, smoke, anvil sound), the last (big smoke) sends the craft and `AfterCraft.expect` · 1.5–1.9 the finished part rises out of the smoke, then `Scene.leave()` · `AfterCraft` selects the new gun as soon as it is picked up (TACZ draws it during the outro) and calls `TaczClient.inspect` once the scene is over |
+| WIDE forge | 0–0.4 the preview sinks into `anvil()`, materials gather and stay there · 0.1–0.4 the right hand reaches for the table's own hammer on its tool wall (`TaczClient.toolRest`), takes it (`CraftFx.holding` → `TaczClient.hide` takes it out of the model, `TaczClient.drawTool` draws it in the hand) and has it on the work by 0.7 · blows at 1.1/1.5/1.9 (sparks, smoke, anvil sound) · hangs it back by 2.3 · takes the drill off the desk (2.55), bit down on the work by 2.85, two holes at 3.05/3.45 (sparks, grindstone whirr), lays it back by 3.95 · 4.05 `FORGED`: big smoke and fire (extinguish hiss), sends the craft and `AfterCraft.expect` · 4.05–4.45 the finished part rises out of the smoke, then `Scene.leave()` · `AfterCraft` selects the new gun as soon as it is picked up (TACZ draws it during the outro) and calls `TaczClient.inspect` once the scene is over |
 | SINGLE press | materials into `pressMouth()` · strokes at 0.6/1.0 (`CraftFx.press`: ram down, lever turned down round its hinge; smoke, piston sound), the right hand on the lever knob (`TaczClient.leverKnob`) from 0.3 s · 4 rounds fall to the mat · crafts at the end (1.7) |
 | TALL printer | 0–0.5 materials and preview fall into the resin (`vat()`) · 0.3–1.25 the camera bends down (`bend`, `freeCamera`) and the right hand taps the screen at 0.8 · 1.1–1.7 build plate down (`CraftFx.printer` → `TaczClient.print`: plate cubes of bone `crane`, model print `workpiece` hidden) · two peels to 2.5 · up to 3.1 with the part under it · part floats to `showcase()`, chime · crafts at 3.6 |
 

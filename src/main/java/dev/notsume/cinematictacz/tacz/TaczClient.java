@@ -4,19 +4,25 @@ import com.tacz.guns.api.DefaultAssets;
 import com.tacz.guns.api.TimelessAPI;
 import com.tacz.guns.api.client.gameplay.IClientPlayerGunOperator;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
 import com.tacz.guns.block.AbstractGunSmithTableBlock;
 import com.tacz.guns.block.entity.GunSmithTableBlockEntity;
 import com.tacz.guns.client.gui.GunSmithTableScreen;
+import com.tacz.guns.client.model.bedrock.BedrockCube;
 import com.tacz.guns.client.model.bedrock.BedrockModel;
 import com.tacz.guns.client.model.bedrock.BedrockPart;
 import com.tacz.guns.network.message.ClientMessageCraft;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
+import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
@@ -25,7 +31,7 @@ import org.joml.Vector3f;
 import java.util.ArrayList;
 import java.util.List;
 
-/** The client side of {@link Tacz}: TACZ's craft packet, table window, table models and gun animations. */
+/** The client side of {@link Tacz}: TACZ's craft packet, table window, table models (and the forge's tools) and gun animations. */
 public final class TaczClient {
     private TaczClient() {}
 
@@ -92,18 +98,32 @@ public final class TaczClient {
             if (Math.abs(part.x) < 0.05f && Math.abs(part.y) < 0.05f && Math.abs(part.z) < 0.05f) knob = part;
         }
         if (knob == null) return null;
-        // TACZ's table renderer, then the bones down to the knob, whose pivot is its centre
+        // the knob's pivot is its centre
         PoseStack pose = new PoseStack();
+        press(table, stroke);
+        toBone(pose, table, block, press);
+        Vec3 at = point(pose, knob, new Vector3f());
+        press(table, 0);
+        return at;
+    }
+
+    /** TACZ's table renderer (at the table's place in the world), then the bones down to and through {@code bone}. */
+    private static void toBone(PoseStack pose, GunSmithTableBlockEntity table, AbstractGunSmithTableBlock block, BedrockPart bone) {
+        BlockPos root = table.getBlockPos();
         pose.translate(root.getX() + 0.5, root.getY() + 1.5, root.getZ() + 0.5);
         pose.mulPose(Axis.ZN.rotationDegrees(180));
         pose.mulPose(Axis.YN.rotationDegrees(block.parseRotation(table.getBlockState().getValue(AbstractGunSmithTableBlock.FACING))));
         List<BedrockPart> chain = new ArrayList<>();
-        for (BedrockPart part = press; part != null; part = part.getParent()) chain.add(0, part);
-        press(table, stroke);
+        for (BedrockPart part = bone; part != null; part = part.getParent()) chain.add(0, part);
         for (BedrockPart part : chain) part.translateAndRotateAndScale(pose);
-        knob.translateAndRotateAndScale(pose);
-        press(table, 0);
-        Vector3f at = pose.last().pose().transformPosition(new Vector3f());
+    }
+
+    /** The world position of {@code local} (blocks) in {@code part}'s frame, or in the pose's own without a part. */
+    private static Vec3 point(PoseStack pose, @Nullable BedrockPart part, Vector3f local) {
+        pose.pushPose();
+        if (part != null) part.translateAndRotateAndScale(pose);
+        Vector3f at = pose.last().pose().transformPosition(new Vector3f(local));
+        pose.popPose();
         return new Vec3(at.x, at.y, at.z);
     }
 
@@ -137,6 +157,102 @@ public final class TaczClient {
         if (print != null) print.visible = !hidePrint;
     }
 
+    // ponytail: the default gunpack's gun smith table; another model (other bones, other cube counts) has no tools to take
+    /*
+     * The gun smith table's own tools. The hammer hangs on the tool wall in bone "tools" (pivot bedrock (32, 11, -8)) with
+     * the other tools: its head is the bone's first turned cube (child 0), its handle the 8th plain cube (1x6x1, bedrock
+     * x 4, z 6.5, y 18..24). The drill lies on the desk, bone "Drill": 5 turned cubes, so 5 children: bit, chuck, body,
+     * grip, battery.
+     */
+    public enum Tool { HAMMER, DRILL }
+    private static final String TOOLS_BONE = "tools", DRILL_BONE = "Drill";
+    private static final int TOOLS_PARTS = 3, TOOLS_CUBES = 8, HANDLE_CUBE = 7, DRILL_PARTS = 5;
+    /** Where the hand holds the hammer, in its bone: low on the handle, bedrock (4, 19.5, 6.5). */
+    private static final Vector3f HAMMER_GRIP = new Vector3f(4 - 32, 11 - 19.5f, 6.5f + 8).div(16);
+    /** The hammer's handle while it is out of the model (the hammer is in the hand). */
+    @Nullable
+    private static BedrockCube handle;
+
+    /**
+     * How a tool lies on the table, in the world: its grip, its working end (the hammer head's middle, the drill bit's
+     * tip), its working axis (handle, bit) and a second one across it (the hammer head's length, the drill's grip to its
+     * battery).
+     */
+    public record ToolRest(Vec3 grip, Vec3 end, Vec3 axis, Vec3 across) {}
+
+    @Nullable
+    public static ToolRest toolRest(Level level, BlockPos root, Tool tool) {
+        if (!(level.getBlockEntity(root) instanceof GunSmithTableBlockEntity table)
+                || !(table.getBlockState().getBlock() instanceof AbstractGunSmithTableBlock block)) return null;
+        BedrockPart bone = toolBone(table, tool);
+        if (bone == null) return null;
+        PoseStack pose = new PoseStack();
+        toBone(pose, table, block, bone);
+        if (tool == Tool.HAMMER) {
+            BedrockPart head = bone.children.get(0);
+            Vec3 grip = point(pose, null, HAMMER_GRIP), end = point(pose, head, new Vector3f());
+            return new ToolRest(grip, end, end.subtract(grip), point(pose, head, new Vector3f(1, 0, 0)).subtract(end));
+        }
+        BedrockPart bit = bone.children.get(0);
+        Vec3 grip = point(pose, bone.children.get(3), new Vector3f()), tip = point(pose, bit, new Vector3f(-2 / 16f, 0, 0));
+        Vec3 battery = point(pose, bone.children.get(4), new Vector3f());
+        return new ToolRest(grip, tip, tip.subtract(point(pose, bit, new Vector3f())), battery.subtract(grip));
+    }
+
+    /**
+     * Draws {@code tool} of the table at {@code root} as it lies on the table, onto {@code pose}: in camera space, turned
+     * and moved by the caller to where the tool is held.
+     */
+    public static void drawTool(Level level, BlockPos root, Tool tool, PoseStack pose, MultiBufferSource buffers, int light) {
+        if (!(level.getBlockEntity(root) instanceof GunSmithTableBlockEntity table)
+                || !(table.getBlockState().getBlock() instanceof AbstractGunSmithTableBlock block)) return;
+        BedrockPart bone = toolBone(table, tool);
+        ResourceLocation texture = TimelessAPI.getClientBlockIndex(type(table)).map(index -> index.getTexture()).orElse(null);
+        if (bone == null || texture == null) return;
+        VertexConsumer consumer = buffers.getBuffer(RenderType.entityCutout(texture));
+        pose.pushPose();
+        toBone(pose, table, block, bone);
+        if (tool == Tool.HAMMER) {
+            bone.children.get(0).render(pose, ItemDisplayContext.NONE, consumer, light, OverlayTexture.NO_OVERLAY);
+            BedrockCube shaft = handle != null ? handle : bone.cubes.get(HANDLE_CUBE);
+            shaft.compile(pose.last(), consumer, light, OverlayTexture.NO_OVERLAY, 1, 1, 1, 1);
+        } else {
+            for (BedrockPart part : bone.children) part.render(pose, ItemDisplayContext.NONE, consumer, light, OverlayTexture.NO_OVERLAY);
+        }
+        pose.popPose();
+    }
+
+    /**
+     * Takes {@code tool} out of {@code table}'s model ({@code hidden}) for the next draw, while it is in the hand, or puts
+     * it back; as {@link #press}, done just before one table is drawn and undone right after.
+     */
+    public static void hide(GunSmithTableBlockEntity table, Tool tool, boolean hidden) {
+        BedrockPart bone = toolBone(table, tool);
+        if (bone == null) return;
+        if (tool == Tool.DRILL) {
+            bone.visible = !hidden;
+            return;
+        }
+        bone.children.get(0).visible = !hidden;
+        if (hidden && handle == null) {
+            handle = bone.cubes.remove(HANDLE_CUBE);
+        } else if (!hidden && handle != null) {
+            bone.cubes.add(HANDLE_CUBE, handle);
+            handle = null;
+        }
+    }
+
+    @Nullable
+    private static BedrockPart toolBone(GunSmithTableBlockEntity table, Tool tool) {
+        BedrockModel model = model(table);
+        BedrockPart bone = model == null ? null : model.getNode(tool == Tool.HAMMER ? TOOLS_BONE : DRILL_BONE);
+        if (bone == null) return null;
+        boolean known = tool == Tool.HAMMER
+                ? bone.children.size() == TOOLS_PARTS && bone.cubes.size() == TOOLS_CUBES - (handle == null ? 0 : 1)
+                : bone.children.size() == DRILL_PARTS;
+        return known ? bone : null;
+    }
+
     @Nullable
     private static BedrockPart pressBone(GunSmithTableBlockEntity table) {
         BedrockModel model = model(table);
@@ -145,7 +261,10 @@ public final class TaczClient {
 
     @Nullable
     private static BedrockModel model(GunSmithTableBlockEntity table) {
-        ResourceLocation type = table.getId() == null ? DefaultAssets.DEFAULT_BLOCK_ID : table.getId();
-        return TimelessAPI.getClientBlockIndex(type).map(index -> index.getModel()).orElse(null);
+        return TimelessAPI.getClientBlockIndex(type(table)).map(index -> index.getModel()).orElse(null);
+    }
+
+    private static ResourceLocation type(GunSmithTableBlockEntity table) {
+        return table.getId() == null ? DefaultAssets.DEFAULT_BLOCK_ID : table.getId();
     }
 }

@@ -14,8 +14,9 @@ version the owner tested and gave feedback on.
 
 1. **Inspect right after crafting.** Done, tested in game: the gun is selected as soon as it is picked up
    (during the rise/outro, so TACZ draws it while the camera comes back), inspected once `Scene.active()` is false and
-   the gun is in the main hand; the rise is 0.4 s (`FORGE_LENGTH` 1.9).
-2. **Hammer attached to the hand.** Done, tested in game: the hammer is drawn at the real hand
+   the gun is in the main hand; the rise is 0.4 s (`FORGE_LENGTH` 4.45).
+2. **Hammer attached to the hand.** Done, tested in game (since then the forge takes the table's own hammer and drill
+   instead of Cinematic Interactions' hammer prop, waiting for an in-game test): the hammer is drawn at the real hand
    (`mixin/HandsAccessor`, an `@Invoker` on Cinematic Interactions' package-private `Hands#position`) and
    `handsStiffness()` is 55 while forging; the handle is slanted as in that anvil and the arm lifts it (`HAMMER_LIFT`).
 3. **Press: only the ram moves.** Done: `TaczClient.press` offsets only the `loader`
@@ -29,8 +30,8 @@ version the owner tested and gave feedback on.
 5. **Attachment bench animation.** Done, waiting for an in-game test: the bench is a big resin printer, so the materials
    fall into the vat, the player bends down and taps its screen, the build plate dips into the resin, peels twice and
    rises with the part, which floats out. A first version with a small hammer and a screwdriver was dropped (did not
-   suit the machine); its screwdriver prop stays (`models/prop/screwdriver.json`, `CraftFx.drawScrewdriver`) for the
-   owner's forge idea: weld stitches and screwing besides the hammer blows, smoke and fire particles.
+   suit the machine). The forge ends in smoke and fire now; a weld and screwdriver version of it was tried and dropped
+   for the table's own hammer and drill.
 6. **Settings**, the way Cinematic Interactions does them (`fabric/1.21.1`: `client/Settings.java`, `ClientConfig`,
    `ModMenuIntegration`, `ClothScreen`, `SettingsScreen`): a client file `config/cinematic_tacz-client.json` (same keys
    in a `.toml` on Forge/NeoForge) built from one spec, every value with a comment and a translation key and grouped in
