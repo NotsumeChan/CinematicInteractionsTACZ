@@ -1,0 +1,40 @@
+plugins {
+    id 'fabric-loom' version '1.16.3'
+}
+
+version = mod_version
+group = 'dev.notsume.cinematictacz'
+base.archivesName = 'CinematicInteractions-TACZ-Fabric-1.21.1'
+
+repositories {
+    maven { url = 'https://maven.parchmentmc.org/' }
+    maven { url = 'https://api.modrinth.com/maven'; content { includeGroup 'maven.modrinth' } }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraft_version}"
+    // Mojang names with Parchment parameters, as Cinematic Interactions uses (TACZ's own Yarn names are remapped by Loom).
+    mappings loom.layered {
+        officialMojangMappings()
+        parchment("org.parchmentmc.data:parchment-${minecraft_version}:${parchment_mappings_version}@zip")
+    }
+    modImplementation "net.fabricmc:fabric-loader:${loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+
+    // Neither host is bundled: players install Cinematic Interactions and TaCZ Refabricated themselves.
+    modCompileOnly files("libs/${cinematic_jar}")
+    modCompileOnly "maven.modrinth:tacz-refabricated:${tacz_version}"
+    modCompileOnly "maven.modrinth:forge-config-api-port:${fcap_version}"
+}
+
+processResources {
+    inputs.property 'version', version
+    filesMatching('fabric.mod.json') {
+        expand version: version
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}

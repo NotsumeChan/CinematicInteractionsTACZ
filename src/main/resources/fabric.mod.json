@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "cinematic_tacz",
+  "version": "${version}",
+  "name": "Cinematic Interactions: TACZ Addon",
+  "description": "First-person Cinematic Interactions scenes for the TACZ gun smith tables.",
+  "authors": ["NotsumeChan"],
+  "contact": {"sources": "https://github.com/NotsumeChan/CinematicInteractionsTACZ"},
+  "license": "MIT",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["dev.notsume.cinematictacz.CinematicTacz"],
+    "client": ["dev.notsume.cinematictacz.client.CinematicTaczClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.14",
+    "minecraft": "1.21.1",
+    "java": ">=21",
+    "fabric-api": "*",
+    "cinematic": ">=0.18.25",
+    "tacz": "*"
+  }
+}
