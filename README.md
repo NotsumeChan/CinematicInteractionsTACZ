@@ -36,7 +36,11 @@ together from its materials.
 
 - **TACZ's own recipes**: each table's tabs and filters from the gunpack are respected, and the server still validates
   and hands out every craft (the add-on sends TACZ's own craft packet).
-- **Crafting animation**: the materials gather into the part, which then pops into place.
+- **Crafting animations**: at the gun smith table you take its own hammer and drill, forge and drill the part, and it
+  rises out of the smoke, then the new gun is drawn and inspected; the ammo press strokes down, its lever in your hand,
+  and the rounds tumble out; the attachment workbench is a resin printer that prints the part out of its vat.
+- **Settings** (`config/cinematic_tacz-client.json`, or Mod Menu's button): each table's scene, the animations, the
+  draw and inspect after forging, the particles.
 - **Material counter** `have/need` in green or red; parts you can't craft yet are see-through.
 - **Scene only**: TACZ's window never opens outside the scene (from afar, sneaking, or with TACZ's interact key); a
   notice asks you to step closer.

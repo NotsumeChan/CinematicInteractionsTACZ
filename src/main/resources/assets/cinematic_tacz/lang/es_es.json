@@ -1,5 +1,21 @@
 {
   "cinematic_tacz.hint": "Clic en una pieza para elegirla, otro clic para fabricarla · Clic derecho: siguiente categoría · Rueda: páginas",
   "cinematic_tacz.empty": "Esta mesa no tiene recetas",
-  "cinematic_tacz.closer": "Acércate a la mesa para trabajar en ella"
+  "cinematic_tacz.closer": "Acércate a la mesa para trabajar en ella",
+  "cinematic_tacz.configuration.title": "Cinematic Interactions: TACZ Addon",
+  "cinematic_tacz.configuration.scenes": "Escenas",
+  "cinematic_tacz.configuration.gunSmithTable": "Mesa de armero",
+  "cinematic_tacz.configuration.gunSmithTable.tooltip": "Si la mesa de armero muestra su escena. Desactivada, abre la ventana propia de TACZ.",
+  "cinematic_tacz.configuration.ammoBench": "Mesa de munición",
+  "cinematic_tacz.configuration.ammoBench.tooltip": "Si la mesa de munición muestra su escena. Desactivada, abre la ventana propia de TACZ.",
+  "cinematic_tacz.configuration.attachmentBench": "Mesa de accesorios",
+  "cinematic_tacz.configuration.attachmentBench.tooltip": "Si la mesa de accesorios muestra su escena. Desactivada, abre la ventana propia de TACZ.",
+  "cinematic_tacz.configuration.crafting": "Fabricación",
+  "cinematic_tacz.configuration.animations": "Animaciones de fabricación",
+  "cinematic_tacz.configuration.animations.tooltip": "El martillo y el taladro, la prensa, la impresora de resina. Desactivadas, el objeto se fabrica al instante.",
+  "cinematic_tacz.configuration.inspect": "Sacar e inspeccionar armas nuevas",
+  "cinematic_tacz.configuration.inspect.tooltip": "Al forjar un arma la escena se cierra, el arma se saca y se inspecciona. Desactivado, la escena sigue abierta para la siguiente.",
+  "cinematic_tacz.configuration.effects": "Efectos",
+  "cinematic_tacz.configuration.particles": "Humo, chispas y fuego",
+  "cinematic_tacz.configuration.particles.tooltip": "Las partículas de las animaciones de fabricación."
 }

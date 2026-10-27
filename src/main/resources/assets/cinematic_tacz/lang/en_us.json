@@ -1,5 +1,21 @@
 {
   "cinematic_tacz.hint": "Click a part to choose it, click it again to craft · Right click: next category · Wheel: pages",
   "cinematic_tacz.empty": "This table has no recipes",
-  "cinematic_tacz.closer": "Step up to the table to work at it"
+  "cinematic_tacz.closer": "Step up to the table to work at it",
+  "cinematic_tacz.configuration.title": "Cinematic Interactions: TACZ Addon",
+  "cinematic_tacz.configuration.scenes": "Scenes",
+  "cinematic_tacz.configuration.gunSmithTable": "Gun smith table",
+  "cinematic_tacz.configuration.gunSmithTable.tooltip": "Whether the gun smith table plays its scene. Off, it opens TACZ's own window.",
+  "cinematic_tacz.configuration.ammoBench": "Ammo workbench",
+  "cinematic_tacz.configuration.ammoBench.tooltip": "Whether the ammo workbench plays its scene. Off, it opens TACZ's own window.",
+  "cinematic_tacz.configuration.attachmentBench": "Attachment workbench",
+  "cinematic_tacz.configuration.attachmentBench.tooltip": "Whether the attachment workbench plays its scene. Off, it opens TACZ's own window.",
+  "cinematic_tacz.configuration.crafting": "Crafting",
+  "cinematic_tacz.configuration.animations": "Crafting animations",
+  "cinematic_tacz.configuration.animations.tooltip": "The hammer and drill, the press, the resin printer. Off, the item is crafted at once.",
+  "cinematic_tacz.configuration.inspect": "Draw and inspect new guns",
+  "cinematic_tacz.configuration.inspect.tooltip": "After forging a gun the scene closes, the gun is drawn and inspected. Off, the scene stays open for the next craft.",
+  "cinematic_tacz.configuration.effects": "Effects",
+  "cinematic_tacz.configuration.particles": "Smoke, sparks and fire",
+  "cinematic_tacz.configuration.particles.tooltip": "The particles of the crafting animations."
 }

@@ -112,7 +112,7 @@ public final class CraftFx {
 
     private static void burst(ParticleOptions type, Vec3 at, int count, double spread, double speed) {
         ClientLevel level = Minecraft.getInstance().level;
-        if (level == null) return;
+        if (level == null || !Settings.get(Settings.PARTICLES)) return;
         for (int i = 0; i < count; i++) {
             level.addParticle(type,
                     at.x + RANDOM.triangle(0, spread), at.y + RANDOM.nextDouble() * spread, at.z + RANDOM.triangle(0, spread),

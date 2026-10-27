@@ -9,6 +9,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 public final class CinematicTaczClient implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
+        Settings.load();
         for (String table : Tacz.TABLES) {
             AddonScenes.register(CinematicTacz.scene(table), (pos, state, player, side) -> new GunSmithScene(pos, state, side));
         }

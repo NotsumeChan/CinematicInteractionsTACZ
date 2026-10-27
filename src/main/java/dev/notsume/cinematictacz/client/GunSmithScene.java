@@ -448,15 +448,24 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
             return;
         }
         int menuId = menu.containerId;
+        boolean inspect = layout == WIDE && Settings.get(Settings.INSPECT);
+        if (!Settings.get(Settings.ANIMATIONS)) {
+            // no animation: crafted at once; a new gun is still drawn and inspected
+            sound(SoundEvents.SMITHING_TABLE_USE, 0.5f, 1.2f);
+            if (inspect) AfterCraft.expect(recipe.output());
+            TaczClient.craft(recipe.id(), menuId);
+            if (inspect) Scene.leave();
+            return;
+        }
         landed = 0;
         if (layout == WIDE) {
             sound(SoundEvents.ARMOR_EQUIP_IRON.value(), 0.5f, 0.8f);
-            drawAfter = true;
+            drawAfter = inspect;
             ClientLevel level = Minecraft.getInstance().level;
             hammerRest = level == null ? null : TaczClient.toolRest(level, root, TaczClient.Tool.HAMMER);
             drillRest = level == null ? null : TaczClient.toolRest(level, root, TaczClient.Tool.DRILL);
             startMove(FORGE_LENGTH, FORGED, () -> {
-                AfterCraft.expect(recipe.output());
+                if (inspect) AfterCraft.expect(recipe.output());
                 TaczClient.craft(recipe.id(), menuId);
             });
         } else if (layout == SINGLE) {

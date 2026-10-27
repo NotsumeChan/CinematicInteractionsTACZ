@@ -12,6 +12,10 @@ src/main/java/dev/notsume/cinematictacz/
   client/GunSmithScene.java     the scene (extends AddonMenuStation<AbstractContainerMenu>)
   client/CraftFx.java           effects: press stroke, printer plate and forge tool states, smoke/sparks/fire
   client/AfterCraft.java        after forging: select the new gun, then inspect
+  client/Settings.java          the player's settings, config/cinematic_tacz-client.json (sections, translation keys)
+  client/SettingsScreen.java    the settings screen (a switch per option, tooltip, Done/Cancel)
+  client/ModMenuIntegration.java  Mod Menu's settings button (Mod Menu optional)
+  mixin/AddonScenesMixin.java   a table whose scene is turned off has none: Cinematic Interactions opens TACZ's window
   mixin/HandsAccessor.java      Cinematic Interactions' real hand position (package-private there), for the forge's tools
   mixin/MinecraftMixin.java     TACZ's table window only behind a scene ("step closer" otherwise)
   mixin/KeyMappingMixin.java    a mouse button reaches every key mapping on it when one is TACZ's (shoot/aim)
@@ -20,7 +24,7 @@ src/main/java/dev/notsume/cinematictacz/
   mixin/TaczTableRendererMixin.java  optional (require 0): ammo press stroke while crafting
 ```
 
-Only `tacz/`, `TaczTableRendererMixin` and `GunSmithTableBlockEntityMixin` import `com.tacz.*`. A different TACZ port is adapted there.
+Only `tacz/`, `TaczTableRendererMixin`, `GunSmithTableBlockEntityMixin` and `AddonScenesMixin` import `com.tacz.*`. A different TACZ port is adapted there.
 
 ## How a scene works
 

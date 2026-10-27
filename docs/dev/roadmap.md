@@ -32,22 +32,31 @@ version the owner tested and gave feedback on.
    rises with the part, which floats out. A first version with a small hammer and a screwdriver was dropped (did not
    suit the machine). The forge ends in smoke and fire now; a weld and screwdriver version of it was tried and dropped
    for the table's own hammer and drill.
-6. **Settings**, the way Cinematic Interactions does them (`fabric/1.21.1`: `client/Settings.java`, `ClientConfig`,
-   `ModMenuIntegration`, `ClothScreen`, `SettingsScreen`): a client file `config/cinematic_tacz-client.json` (same keys
-   in a `.toml` on Forge/NeoForge) built from one spec, every value with a comment and a translation key and grouped in
-   sections; Mod Menu opens a Cloth Config screen when Cloth Config is installed and an own plain screen otherwise; Cloth
-   Config and Mod Menu are `modCompileOnly` + `suggests`, never required. `ClientConfig` is not part of its add-on API:
-   copy the pattern (or ask its owner to expose it). Candidates: scene per table, crafting animations, draw + inspect
-   after forging, whether the forge scene closes after each gun (see "Decisions pending"), smoke/sparks.
+6. **Settings.** Done, waiting for an in-game test, the way Cinematic Interactions now does them on Fabric (it dropped
+   Cloth Config): its own JSON file, `config/cinematic_tacz-client.json`, written on first start with every value,
+   keys `section.name`; one list of options (`Settings.ALL`), each with a translation key and a `.tooltip` saying what
+   it does; its own screen (`SettingsScreen`) behind Mod Menu's button (`modCompileOnly` + `suggests`, never required;
+   `modLocalRuntime` in the dev runs). Options: scene per table (`AddonScenesMixin` on `AddonScenes.available`; off,
+   Cinematic Interactions opens TACZ's window), crafting animations (off: crafted at once), draw + inspect after forging
+   (off: the forge scene stays open, which settles that "decision pending" per player), particles.
+7. **More versions: every target Cinematic Interactions has.** It now builds four from shared sources with Stonecutter
+   (`settings.gradle.kts`: 1.20.1 Forge and Fabric, 1.21.1 NeoForge and Fabric, `vcsVersion` 1.21.1-neoforge; its
+   `fabric/1.21.1` tree, which our JAR and the release workflow build from, is the old one). For each node: a TACZ for
+   that loader and version (original TACZ is Forge 1.20.1, TaCZ Refabricated Fabric 1.21.1; check what exists for the
+   other two), Cinematic Interactions' JAR of that target, a Loom variant per loader (`loom-back-compat`, as it does),
+   `//?` conditions where Minecraft or TACZ differ, the settings file in a `.toml` where Forge/NeoForge have a config
+   spec, and a JAR per target in the release workflow.
 
 ## Requests for Cinematic Interactions' owner
 
 - A public recipe panel API (generalise `TableRecipeBook`: `RecipePanel` + `Source` of entries; `ClientStation.recipePanel()`
   so `SceneScreen` stops checking `instanceof TableStation`). Then the scene could use the real recipe book.
+- A per-scene switch in the add-on API (an add-on's scene turned off by the player, so the block keeps its window);
+  `AddonScenesMixin` does it for now.
 - Optional: multi-block stations (a definition mapping several blocks to one root), making the "own table" aim
   workaround unnecessary.
 
 ## Decisions pending
 
 - License: `fabric.mod.json` says MIT, there is no LICENSE file; TACZ and TaCZ Refabricated are GPL-3.0.
-- Whether the forge scene should close after every gun (now it does, for the inspect) or stay for more crafts.
+- Whether the forge scene should close after every gun by default (now it does, for the inspect; a setting turns it off).
