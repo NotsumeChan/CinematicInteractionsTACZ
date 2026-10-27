@@ -12,7 +12,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /**
- * Part of the TACZ bridge: the ammo bench's press strokes down while the scene crafts on it. Optional (require 0): with a
+ * Part of the TACZ bridge: the ammo bench's press strokes down and the attachment bench's build plate dips while the
+ * scene crafts on them. Optional (require 0): with a
  * TACZ whose table renderer differs, the press just stays still.
  */
 @Mixin(GunSmithTableRenderer.class)
@@ -28,13 +29,15 @@ abstract class TaczTableRendererMixin {
     @Inject(method = {RENDER, RENDER_INTERMEDIARY}, at = @At("HEAD"), require = 0)
     private void cinematicTacz$pressDown(GunSmithTableBlockEntity table, float partialTick, PoseStack pose,
                                          MultiBufferSource buffers, int light, int overlay, CallbackInfo ci) {
-        float stroke = CraftFx.pressStroke(table.getBlockPos());
+        float stroke = CraftFx.pressStroke(table.getBlockPos()), plate = CraftFx.plateDrop(table.getBlockPos());
         if (stroke != 0) TaczClient.press(table, stroke);
+        if (plate >= 0) TaczClient.print(table, plate, true);
     }
 
     @Inject(method = {RENDER, RENDER_INTERMEDIARY}, at = @At("TAIL"), require = 0)
     private void cinematicTacz$pressBack(GunSmithTableBlockEntity table, float partialTick, PoseStack pose,
                                          MultiBufferSource buffers, int light, int overlay, CallbackInfo ci) {
         if (CraftFx.pressStroke(table.getBlockPos()) != 0) TaczClient.press(table, 0);
+        if (CraftFx.plateDrop(table.getBlockPos()) >= 0) TaczClient.print(table, 0, false);
     }
 }

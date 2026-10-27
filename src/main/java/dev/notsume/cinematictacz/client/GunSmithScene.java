@@ -65,14 +65,17 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
     private static final double LEVER_FROM = 0.3, LEVER_AFTER = 0.2;
     private static final int ROUNDS = 4;
     /**
-     * The attachment bench: the materials gather into the hovering part, then a small hammer taps it and a screwdriver
-     * turns its screws, in either order (a coin flip per craft); it pops in a puff of smoke and then crafts.
+     * The attachment bench, a big resin printer: the materials fall into the vat, the player bends down and taps the
+     * screen, the build plate goes down into the resin, peels twice, comes back up with the part under it, and the part
+     * floats out to the player. Seconds of each beat, then of the whole print.
      */
-    private static final double FIT_GATHER = 0.4, FIT_STEP = 0.75, FIT_POP = FIT_GATHER + 2 * FIT_STEP, FIT_LENGTH = FIT_POP + 0.3;
-    /** Within a tool's step: the hammer's three taps and the screwdriver's three quarter turns (each clicks home). */
-    private static final double[] FIT_BEATS = {0.25, 0.45, 0.65};
-    /** The small hammer, against the forge's: its size and how high it lifts (blocks). */
-    private static final double TAP_SIZE = 0.6, TAP_LIFT = 0.1;
+    private static final double FALL = 0.5, TAP = 0.8, PLATE_DOWN = 1.1, PLATE_DIPPED = 1.7, PEELS_END = 2.5,
+            PLATE_UP = 3.1, PRINT_LENGTH = 3.6;
+    private static final double[] PRINT_BEATS = {FALL, TAP, PLATE_DOWN, PLATE_DIPPED, PEELS_END, PRINT_LENGTH - 0.15};
+    /** How far back up (of its travel) the plate comes on a peel. */
+    private static final double PEEL = 0.15;
+    /** When the player is bent down to the screen: going down, back up. */
+    private static final double BEND_FROM = 0.3, BEND_TO = 1.25;
     /** Guns on the gun smith table are turned so long ones lie side by side on a slant, as on a rack, not end to end. */
     private static final float DIAGONAL = 30;
     /** Seconds the recipe grid takes to shrink away when a craft starts. */
@@ -110,7 +113,8 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
             3, 2, 0.25, 0.8f, 0.56, 1.4,
             0.86, 1.63, 1f,
             0.56, 0.7, 0.8f, 0.16,
-            1.6, 1.85, 1.15, 4,
+            // eye at standing height, looking down onto the hovering part: lower, the work sat at the top of the view
+            1.6, 1.85, 1.55, 15,
             1.0, 0.55, 0.35);
 
     // ponytail: by the default gunpack's tab ids; a gunpack's own long-gun tabs fall back to 0.7
@@ -144,8 +148,6 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
     private Tacz.Recipe selected;
     /** The scale of the tab the chosen part was picked from: it keeps it while the player leafs through others. */
     private float selectedScale = 1;
-    /** This craft on the attachment bench screws before it taps. */
-    private boolean screwFirst;
     /** Recipes on the current page (and the chosen one) the player has the materials for, refreshed every tick. */
     private final Set<ResourceLocation> craftable = new HashSet<>();
     /** How many blows or strokes of the current craft have landed (their sparks, smoke and sound played). */
@@ -329,7 +331,16 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
 
     @Override
     public CameraRig.Pose lean() {
-        return new CameraRig.Pose(at(0, layout.camOut(), layout.camUp()), side.getOpposite().toYRot(), layout.camPitch(), 0);
+        double bend = layout == TALL ? bend(moveTime()) : 0;
+        // at the printer the player bends down to its screen and back up
+        Vec3 eye = at(0, layout.camOut() - 0.5 * bend, layout.camUp() - 0.65 * bend);
+        return new CameraRig.Pose(eye, side.getOpposite().toYRot(), (float) (layout.camPitch() + 30 * bend), 0);
+    }
+
+    /** Bending down to the printer's screen takes the camera further from the head than Cinematic Interactions allows. */
+    @Override
+    public boolean freeCamera() {
+        return layout == TALL && moving();
     }
 
     @Override
@@ -431,9 +442,7 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
             // crafted once the rounds lie on the mat, so they do not reach the inventory while still falling
             startMove(PRESS_LENGTH, PRESS_LENGTH, () -> TaczClient.craft(recipe.id(), menuId));
         } else {
-            sound(SoundEvents.SMITHING_TABLE_USE, 0.5f, 1f);
-            screwFirst = player.getRandom().nextBoolean();
-            startMove(FIT_LENGTH, FIT_LENGTH, () -> TaczClient.craft(recipe.id(), menuId));
+            startMove(PRINT_LENGTH, PRINT_LENGTH, () -> TaczClient.craft(recipe.id(), menuId));
         }
     }
 
@@ -441,8 +450,9 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
     @Override
     public void beforeFrame() {
         double t = moveTime();
+        if (t >= 0 && layout == TALL) CraftFx.printer(root, (float) plateDrop(t));
         if (t >= 0) {
-            double[] hits = layout == WIDE ? BLOWS : layout == SINGLE ? STROKES : fitHits();
+            double[] hits = layout == WIDE ? BLOWS : layout == SINGLE ? STROKES : PRINT_BEATS;
             while (landed < hits.length && t >= hits[landed]) land(landed++);
         } else if (drawAfter) {
             drawAfter = false;
@@ -459,43 +469,50 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
         } else if (layout == SINGLE) {
             CraftFx.smoke(pressHead(), 6);
             sound(SoundEvents.PISTON_EXTEND, 0.45f, 1.4f);
-        } else if (hit == FIT_BEATS.length * 2) {
-            CraftFx.smoke(fitPoint(), 10);
-            CraftFx.sparks(fitPoint(), 4);
-            sound(SoundEvents.SMITHING_TABLE_USE, 0.4f, 1.3f);
-        } else if ((hit < FIT_BEATS.length) == screwFirst) {
-            sound(SoundEvents.LEVER_CLICK, 0.35f, 1.8f + 0.1f * (hit % FIT_BEATS.length));
         } else {
-            CraftFx.sparks(fitPoint(), 3);
-            sound(SoundEvents.ANVIL_USE, 0.15f, 1.7f + 0.1f * (hit % FIT_BEATS.length));
+            switch (hit) {
+                case 0 -> sound(SoundEvents.GENERIC_SPLASH, 0.2f, 1.6f);
+                case 1 -> {
+                    sound(SoundEvents.UI_BUTTON_CLICK.value(), 0.3f, 1.6f);
+                    sound(SoundEvents.NOTE_BLOCK_BIT.value(), 0.35f, 1.8f);
+                }
+                case 2, 4 -> sound(SoundEvents.PISTON_CONTRACT, 0.15f, 0.6f);
+                case 3 -> sound(SoundEvents.HONEY_BLOCK_PLACE, 0.4f, 1f);
+                default -> {
+                    CraftFx.smoke(showcase(), 5);
+                    sound(SoundEvents.AMETHYST_BLOCK_CHIME, 0.6f, 1.2f);
+                }
+            }
         }
     }
 
-    /** The attachment bench's beats in order: the first tool's three, the second's three, then the pop. */
-    private double[] fitHits() {
-        double[] hits = new double[FIT_BEATS.length * 2 + 1];
-        for (int i = 0; i < FIT_BEATS.length; i++) {
-            hits[i] = FIT_GATHER + FIT_BEATS[i];
-            hits[FIT_BEATS.length + i] = FIT_GATHER + FIT_STEP + FIT_BEATS[i];
-        }
-        hits[hits.length - 1] = FIT_POP;
-        return hits;
+    /** How far down the printer's build plate is at {@code t} seconds into a print, 0 (up) to 1 (in the resin). */
+    private static double plateDrop(double t) {
+        if (t < PLATE_DOWN || t >= PLATE_UP) return 0;
+        if (t < PLATE_DIPPED) return ease((t - PLATE_DOWN) / (PLATE_DIPPED - PLATE_DOWN));
+        if (t < PEELS_END) return 1 - PEEL * Math.abs(Math.sin(2 * Math.PI * (t - PLATE_DIPPED) / (PEELS_END - PLATE_DIPPED)));
+        return 1 - ease((t - PEELS_END) / (PLATE_UP - PEELS_END));
     }
 
-    /** When the hammer's step ({@code screw} false) or the screwdriver's starts on the attachment bench. */
-    private double toolFrom(boolean screw) {
-        return FIT_GATHER + (screw == screwFirst ? 0 : FIT_STEP);
+    /** How far the player is bent down to the printer's screen at {@code t}, 0..1. */
+    private static double bend(double t) {
+        if (t < BEND_FROM || t > BEND_TO) return 0;
+        return Math.sin(Math.PI * (t - BEND_FROM) / (BEND_TO - BEND_FROM));
     }
 
-    /** Where the tools work on the attachment bench: the hovering part's face, towards the player. */
-    private Vec3 fitPoint() {
-        return showcase().add(side().scale(0.03));
+    // ponytail: the default gunpack's printer, measured from its model (resin vat, front screen, build plate); another
+    // gunpack's attachment bench gets the same motions at these points
+    /** The resin's surface, the middle of the screen on the front, and the build plate's underside when up. */
+    private Vec3 vat() {
+        return at(0, 0.06, 0.81);
     }
 
-    /** A tool's motion within its step, 0..1 at {@code u} seconds into it: three beats, landing at 0, or -1 outside. */
-    private static double fitSwing(double u) {
-        if (u < 0.05 || u > FIT_BEATS[FIT_BEATS.length - 1] + 0.05) return -1;
-        return Math.abs(Math.sin(Math.PI * (u - 0.05) / (FIT_BEATS[0] - 0.05)));
+    private Vec3 screen() {
+        return at(0, 0.5, 0.31);
+    }
+
+    private Vec3 plate(double drop) {
+        return at(0, 0.06, 1.28 - TaczClient.PLATE_TRAVEL * drop);
     }
 
     /** The hammer's swing while forging, 0 (on the work) to 1 (raised), or -1 outside the blows. */
@@ -512,15 +529,6 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
     private Vec3[] hammer(double swing) {
         Vec3 slant = side().scale(-0.3).add(right().scale(-0.12)).normalize();
         return hammer(swing, anvil(), UP, slant, side(), 1, HAMMER_LIFT);
-    }
-
-    /**
-     * The small hammer on the attachment bench's upright part: struck from the player's side, the handle rising to the
-     * part from the right hand below it.
-     */
-    private Vec3[] tapHammer(double swing) {
-        Vec3 slant = UP.scale(0.3).add(right().scale(-0.12)).normalize();
-        return hammer(swing, fitPoint(), side(), slant, UP.scale(-1), TAP_SIZE, TAP_LIFT);
     }
 
     /**
@@ -547,19 +555,6 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
         return up.scale(Math.cos(a)).subtract(slant.scale(Math.sin(a)));
     }
 
-    /**
-     * The screwdriver at {@code u} seconds into its step: its tip on the part, the handle towards the player, turned a
-     * quarter at each beat. Returns the grip, the shaft (tip to handle) and the turned crosswise axis.
-     */
-    private Vec3[] screwdriver(double u) {
-        double turns = 0;
-        for (double beat : FIT_BEATS) turns += Mth.clamp((u - beat + 0.15) / 0.15, 0, 1);
-        double a = turns * Math.PI / 2;
-        Vec3 across = right().scale(Math.cos(a)).add(UP.scale(Math.sin(a)));
-        Vec3 tip = fitPoint().add(right().scale(0.04));
-        return new Vec3[]{tip.add(side().scale(CraftFx.SCREWDRIVER_REACH)), side(), across};
-    }
-
     /** While forging: the right hand swings the hammer, the left holds the part down. */
     @Override
     @Nullable
@@ -571,13 +566,11 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
             Vec3 knob = level == null ? null : TaczClient.leverKnob(level, root, CraftFx.pressStroke(root));
             return knob == null ? null : new Vec3[]{knob, rest(false)};
         }
-        if (layout == TALL && t >= 0) {
-            // the left hand steadies the part, the right works it with whichever tool is out
-            Vec3 steady = showcase().add(right().scale(-0.14)).add(side().scale(0.02));
-            double hammer = fitSwing(t - toolFrom(false)), screw = t - toolFrom(true);
-            if (hammer >= 0) return new Vec3[]{tapHammer(hammer)[0], steady};
-            if (fitSwing(screw) >= 0) return new Vec3[]{screwdriver(screw)[0], steady};
-            return null;
+        if (layout == TALL && bend(t) > 0) {
+            // the right hand reaches the screen as the player bends down, pressing in at the tap
+            double press = 0.03 * Math.max(0, 1 - Math.abs(t - TAP) / 0.12);
+            Vec3 touch = screen().add(side().scale(0.04 - press));
+            return new Vec3[]{rest(true).lerp(touch, Math.min(1, bend(t) * 1.6)), rest(false)};
         }
         double swing = layout == WIDE ? swing(t) : -1;
         if (swing < 0) return null;
@@ -682,19 +675,24 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
                 ItemPlacer.render(pose, buffers, eye, selected.output(), at, side, 300 + k, 0.35f, 0, light);
             }
         } else if (t >= 0) {
-            // The attachment bench: the materials gather into the part, the tools work it, it pops.
-            gather = Math.min(1, t / FIT_GATHER);
-            if (t >= FIT_POP) {
-                partScale *= (float) (1 + 0.3 * Math.sin((t - FIT_POP) / (FIT_LENGTH - FIT_POP) * Math.PI));
-            }
-            Vec3 hand = HandsAccessor.cinematicTacz$position(true);
-            double hammer = fitSwing(t - toolFrom(false)), screw = t - toolFrom(true);
-            if (hammer >= 0) {
-                Vec3[] tool = tapHammer(hammer);
-                CraftFx.drawHammer(pose, buffers, eye, hand, tool[1], tool[2], (float) TAP_SIZE, light);
-            } else if (fitSwing(screw) >= 0) {
-                Vec3[] tool = screwdriver(screw);
-                CraftFx.drawScrewdriver(pose, buffers, eye, hand, tool[1], tool[2], light);
+            // The printer: the materials and the preview drop into the resin; the part comes up under the build plate,
+            // then floats out to where the preview hovered.
+            into = vat();
+            gather = Math.min(1, t / FALL);
+            float hanging = layout.scale() * selectedScale;
+            if (t < FALL) {
+                float e = (float) (gather * gather);
+                part = showcase.lerp(vat(), e);
+                partScale = Mth.lerp(e, showScale, 0);
+            } else if (t < PEELS_END) {
+                showPart = false;
+            } else if (t < PLATE_UP) {
+                part = plate(plateDrop(t)).add(0, -0.12, 0);
+                partScale = hanging;
+            } else {
+                float e = ease(Math.min(1, (t - PLATE_UP) / (PRINT_LENGTH - 0.15 - PLATE_UP)));
+                part = plate(0).add(0, -0.12, 0).lerp(showcase, e);
+                partScale = Mth.lerp(e, hanging, showScale);
             }
         }
         if (showPart) {

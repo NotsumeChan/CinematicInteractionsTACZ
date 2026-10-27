@@ -8,6 +8,7 @@ import com.mojang.math.Axis;
 import com.tacz.guns.block.AbstractGunSmithTableBlock;
 import com.tacz.guns.block.entity.GunSmithTableBlockEntity;
 import com.tacz.guns.client.gui.GunSmithTableScreen;
+import com.tacz.guns.client.model.bedrock.BedrockModel;
 import com.tacz.guns.client.model.bedrock.BedrockPart;
 import com.tacz.guns.network.message.ClientMessageCraft;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
@@ -112,10 +113,39 @@ public final class TaczClient {
         return onHinge || knob;
     }
 
+    // ponytail: the default gunpack's attachment bench; another model (other bone, other cube count) is left still
+    /*
+     * The attachment bench is a resin printer. Its bone "crane" holds 16 turned cubes, so 16 child parts in file order:
+     * the first 11 are the build plate and its carriage, the last 5 the rails and their top. "workpiece" is the print
+     * hanging under the plate.
+     */
+    private static final String PRINTER_BONE = "crane", PRINT_BONE = "workpiece";
+    private static final int PRINTER_PARTS = 16, PLATE_PARTS = 11;
+    /** How far (blocks) the build plate goes down: from its rest to just in the resin. */
+    public static final float PLATE_TRAVEL = 0.45f;
+
+    /**
+     * Sets how far down ({@code drop} 0..1) the build plate of {@code table}'s printer is for the next draw, and hides the
+     * model's own print while the scene prints its part. Undone with (0, false) right after the draw, as {@link #press}.
+     */
+    public static void print(GunSmithTableBlockEntity table, float drop, boolean hidePrint) {
+        BedrockModel model = model(table);
+        BedrockPart crane = model == null ? null : model.getNode(PRINTER_BONE);
+        if (crane == null || crane.children.size() != PRINTER_PARTS) return;
+        for (int i = 0; i < PLATE_PARTS; i++) crane.children.get(i).offsetY = PLATE_TRAVEL * drop;
+        BedrockPart print = model.getNode(PRINT_BONE);
+        if (print != null) print.visible = !hidePrint;
+    }
+
     @Nullable
     private static BedrockPart pressBone(GunSmithTableBlockEntity table) {
+        BedrockModel model = model(table);
+        return model == null ? null : model.getNode(PRESS_BONE);
+    }
+
+    @Nullable
+    private static BedrockModel model(GunSmithTableBlockEntity table) {
         ResourceLocation type = table.getId() == null ? DefaultAssets.DEFAULT_BLOCK_ID : table.getId();
-        return TimelessAPI.getClientBlockIndex(type)
-                .map(index -> index.getModel() == null ? null : index.getModel().getNode(PRESS_BONE)).orElse(null);
+        return TimelessAPI.getClientBlockIndex(type).map(index -> index.getModel()).orElse(null);
     }
 }

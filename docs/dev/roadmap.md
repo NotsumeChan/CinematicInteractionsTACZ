@@ -26,9 +26,11 @@ version the owner tested and gave feedback on.
    Groovy DSL kept (`hard_mode` silences the Kotlin DSL advice). Next nodes: Forge 1.20.1 (original TACZ, Cinematic
    Interactions has `forge/1.20.1`), NeoForge 1.21.1; a second loader needs its own Loom variant per node (see the
    Stonecutter wiki and its `loom-back-compat` plugin), and its TACZ/CI JARs.
-5. **Attachment bench animation.** Done, waiting for an in-game test: materials gather into the part, then a small
-   hammer (three taps) and a screwdriver (three quarter turns), the order a coin flip per craft, then it pops.
-   Owner's idea for later, for the forge: add weld stitches and screwing to the hammer blows, smoke and fire particles.
+5. **Attachment bench animation.** Done, waiting for an in-game test: the bench is a big resin printer, so the materials
+   fall into the vat, the player bends down and taps its screen, the build plate dips into the resin, peels twice and
+   rises with the part, which floats out. A first version with a small hammer and a screwdriver was dropped (did not
+   suit the machine); its screwdriver prop stays (`models/prop/screwdriver.json`, `CraftFx.drawScrewdriver`) for the
+   owner's forge idea: weld stitches and screwing besides the hammer blows, smoke and fire particles.
 6. **Settings**, the way Cinematic Interactions does them (`fabric/1.21.1`: `client/Settings.java`, `ClientConfig`,
    `ModMenuIntegration`, `ClothScreen`, `SettingsScreen`): a client file `config/cinematic_tacz-client.json` (same keys
    in a `.toml` on Forge/NeoForge) built from one spec, every value with a comment and a translation key and grouped in

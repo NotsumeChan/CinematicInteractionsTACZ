@@ -47,7 +47,7 @@ Only `tacz/`, `TaczTableRendererMixin` and `GunSmithTableBlockEntityMixin` impor
 |---|---|
 | WIDE forge | 0–0.4 the preview sinks into `anvil()`, materials gather and stay there · blows at 0.7/1.1/1.5 (sparks, smoke, anvil sound), the last (big smoke) sends the craft and `AfterCraft.expect` · 1.5–1.9 the finished part rises out of the smoke, then `Scene.leave()` · `AfterCraft` selects the new gun as soon as it is picked up (TACZ draws it during the outro) and calls `TaczClient.inspect` once the scene is over |
 | SINGLE press | materials into `pressMouth()` · strokes at 0.6/1.0 (`CraftFx.press`: ram down, lever turned down round its hinge; smoke, piston sound), the right hand on the lever knob (`TaczClient.leverKnob`) from 0.3 s · 4 rounds fall to the mat · crafts at the end (1.7) |
-| TALL | 0–0.4 materials gather into the hovering part · two steps of 0.75 in random order (`screwFirst`): small hammer, three taps (`tapHammer`, sparks); screwdriver (own prop `models/prop/screwdriver.json`), three quarter turns with clicks · 1.9 pop (smoke, sparks) · crafts at the end (2.2) |
+| TALL printer | 0–0.5 materials and preview fall into the resin (`vat()`) · 0.3–1.25 the camera bends down (`bend`, `freeCamera`) and the right hand taps the screen at 0.8 · 1.1–1.7 build plate down (`CraftFx.printer` → `TaczClient.print`: plate cubes of bone `crane`, model print `workpiece` hidden) · two peels to 2.5 · up to 3.1 with the part under it · part floats to `showcase()`, chime · crafts at 3.6 |
 
 `beforeFrame()` lands blows/strokes on time; `handsOverride()` drives the hands while forging.
 

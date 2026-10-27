@@ -5,6 +5,7 @@ import dev.dyslexic.cinematic.client.HammerModel;
 import dev.dyslexic.cinematic.client.Scene;
 import dev.notsume.cinematictacz.CinematicTacz;
 import net.fabricmc.fabric.api.client.model.loading.v1.FabricBakedModelManager;
+import net.minecraft.Util;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -53,6 +54,28 @@ public final class CraftFx {
             if (x > 0 && x < 1) depth = Math.max(depth, Math.sin(Math.PI * x));
         }
         return (float) depth;
+    }
+
+    // ---- the printer --------------------------------------------------------------------------------------
+
+    @Nullable
+    private static BlockPos printAt;
+    private static float plate;
+    private static long printSeen;
+
+    /** The scene's print on the table at {@code root} has its build plate {@code drop} (0..1) down this frame. */
+    static void printer(BlockPos root, float drop) {
+        printAt = root.immutable();
+        plate = drop;
+        printSeen = Util.getMillis();
+    }
+
+    /**
+     * How far down the build plate of the table at {@code pos} is now (0..1), or -1 when it is not printing. A print
+     * the scene stopped telling about (it ended, or closed midway) is over.
+     */
+    public static float plateDrop(BlockPos pos) {
+        return pos.equals(printAt) && Util.getMillis() - printSeen < 200 ? plate : -1;
     }
 
     // ---- particles ----------------------------------------------------------------------------------------
