@@ -1,7 +1,7 @@
 package dev.notsume.cinematictacz.mixin;
 
-import com.tacz.guns.client.gui.GunSmithTableScreen;
 import dev.dyslexic.cinematic.client.Scene;
+import dev.notsume.cinematictacz.tacz.TaczClient;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -20,7 +20,7 @@ abstract class MinecraftMixin {
     @Inject(method = "setScreen", at = @At("HEAD"), cancellable = true)
     private void cinematicTacz$sceneOnly(@Nullable Screen next, CallbackInfo ci) {
         Minecraft mc = (Minecraft) (Object) this;
-        if (next instanceof GunSmithTableScreen && !Scene.active() && mc.player != null) {
+        if (TaczClient.isTableWindow(next) && !Scene.active() && mc.player != null) {
             ci.cancel();
             mc.player.closeContainer();
             mc.player.displayClientMessage(Component.translatable("cinematic_tacz.closer"), true);

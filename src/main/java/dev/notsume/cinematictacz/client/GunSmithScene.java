@@ -2,27 +2,13 @@ package dev.notsume.cinematictacz.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
-import com.tacz.guns.api.DefaultAssets;
-import com.tacz.guns.api.TimelessAPI;
-import com.tacz.guns.block.AbstractGunSmithTableBlock;
-import com.tacz.guns.block.GunSmithTableBlockB;
-import com.tacz.guns.block.GunSmithTableBlockC;
-import com.tacz.guns.block.entity.GunSmithTableBlockEntity;
-import com.tacz.guns.config.sync.SyncConfig;
-import com.tacz.guns.crafting.GunSmithTableIngredient;
-import com.tacz.guns.crafting.GunSmithTableRecipe;
-import com.tacz.guns.init.ModRecipe;
-import com.tacz.guns.inventory.GunSmithTableMenu;
-import com.tacz.guns.network.message.ClientMessageCraft;
-import com.tacz.guns.resource.filter.RecipeFilter;
-import com.tacz.guns.resource.index.CommonBlockIndex;
-import com.tacz.guns.resource.pojo.data.block.TabConfig;
 import dev.dyslexic.cinematic.api.client.AddonMenuStation;
 import dev.dyslexic.cinematic.client.CameraRig;
 import dev.dyslexic.cinematic.client.ItemPlacer;
 import dev.dyslexic.cinematic.client.Picking;
 import dev.dyslexic.cinematic.client.Scene;
-import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import dev.notsume.cinematictacz.tacz.Tacz;
+import dev.notsume.cinematictacz.tacz.TaczClient;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -39,8 +25,8 @@ import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.BlockHitResult;
@@ -51,7 +37,6 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -60,11 +45,13 @@ import java.util.Set;
  * the part while TACZ's own craft packet goes to the server, which takes the materials and hands the item.
  * <p>
  * Each table shape has its own {@link Layout}, fitted to the default gunpack's models: the low tables are worked on
- * their free tabletop, the tall one (C, two blocks high) on its front, like a tool board.
+ * their free tabletop, the tall one (two blocks high) on its front, like a tool board.
  */
-public final class GunSmithScene extends AddonMenuStation<GunSmithTableMenu> {
+public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu> {
     private static final Vec3 UP = new Vec3(0, 1, 0);
     private static final double CRAFT_LENGTH = 0.9, CRAFT_BEAT = 0.55;
+    /** Guns on the gun smith table are turned so long ones lie side by side on a slant, as on a rack, not end to end. */
+    private static final float DIAGONAL = 30;
 
     /**
      * Where everything goes, in blocks from the middle of the table's footprint at its foot: {@code out} towards the
@@ -79,21 +66,21 @@ public final class GunSmithScene extends AddonMenuStation<GunSmithTableMenu> {
                           double restOut, double restUp, double restAcross) {}
 
     // ponytail: fitted by eye to tacz_default_gun's models (2026-10-27 screenshots); other gunpacks may need their own
-    /** Ammo bench (A): a press and a tall machine fill the back and right; the free mat is the front half. */
+    /** Ammo bench: a press and a tall machine fill the back and right; the free mat is the front half. */
     private static final Layout SINGLE = new Layout(false, 1.0,
             3, 2, 0.2, 0.5f, 0.32, 1.0,
             0.35, 1.48, 0.7f,
             0.42, 1.08, 0.4f, 0.13,
             0.95, 0.95, 1.8, 40,
             0.4, 1.1, 0.3);
-    /** Gun smith table (B): a long desk at 15 px, with trays and a tool wall along its back. */
+    /** Gun smith table: a long desk at 15 px, with trays and a tool wall along its back. */
     private static final Layout WIDE = new Layout(false, 0.94,
             5, 2, 0.34, 0.8f, 0.25, 1.02,
             0.05, 1.5, 1f,
             0.3, 1.36, 0.5f, 0.16,
             0.9, 0.8, 1.64, 36,
             0.32, 1.04, 0.28);
-    /** Attachment bench (C): two blocks tall, worked on its front face like a tool board. */
+    /** Attachment bench: two blocks tall, worked on its front face like a tool board. */
     private static final Layout TALL = new Layout(true, 1.0,
             3, 2, 0.25, 0.8f, 0.56, 1.4,
             0.86, 1.63, 1f,
@@ -101,20 +88,15 @@ public final class GunSmithScene extends AddonMenuStation<GunSmithTableMenu> {
             1.6, 1.85, 1.15, 4,
             1.0, 0.55, 0.35);
 
-    /** {@code scale}: long guns are drawn smaller than pistols, so a page of rifles fits the table as one of pistols. */
-    private record Tab(Component name, List<RecipeHolder<GunSmithTableRecipe>> recipes, float scale) {}
-
-    /** Guns on the gun smith table are turned so long ones lie side by side on a slant, as on a rack, not end to end. */
-    private static final float DIAGONAL = 30;
-
     // ponytail: by the default gunpack's tab ids; a gunpack's own long-gun tabs fall back to 0.7
+    /** Long guns are drawn smaller than pistols, so a page of rifles fits the table as one of pistols. */
     private static float tabScale(ResourceLocation tab) {
         return switch (tab.getPath()) {
             case "pistol" -> 1f;
             case "smg" -> 0.8f;
             case "shotgun", "rifle", "misc" -> 0.65f;
             case "sniper", "mg", "rpg" -> 0.5f;
-            default -> tab.getNamespace().equals("tacz") ? 1f : 0.7f;
+            default -> tab.getNamespace().equals(Tacz.NAMESPACE) ? 1f : 0.7f;
         };
     }
 
@@ -124,7 +106,7 @@ public final class GunSmithScene extends AddonMenuStation<GunSmithTableMenu> {
     /** The table's root block: both blocks of a two-block table lead here. */
     private final BlockPos root;
 
-    private final List<Tab> tabs = new ArrayList<>();
+    private List<Tacz.Tab> tabs = List.of();
     /**
      * The menu the recipes were read from. Moving over from a neighbouring table, the old table's menu is still open for
      * a moment: whichever menu is open now decides.
@@ -134,59 +116,46 @@ public final class GunSmithScene extends AddonMenuStation<GunSmithTableMenu> {
     private int waiting, asked;
     private int tab, page, hovered = -1;
     @Nullable
-    private RecipeHolder<GunSmithTableRecipe> selected;
+    private Tacz.Recipe selected;
     /** The scale of the tab the chosen part was picked from: it keeps it while the player leafs through others. */
     private float selectedScale = 1;
     /** Recipes on the current page (and the chosen one) the player has the materials for, refreshed every tick. */
     private final Set<ResourceLocation> craftable = new HashSet<>();
 
     public GunSmithScene(BlockPos pos, BlockState state, Direction side) {
-        super(pos, side, GunSmithTableMenu.class, 0);
-        layout = state.getBlock() instanceof GunSmithTableBlockC ? TALL
-                : state.getBlock() instanceof GunSmithTableBlockB ? WIDE : SINGLE;
-        root = state.getBlock() instanceof AbstractGunSmithTableBlock table ? table.getRootPos(pos, state) : pos;
+        super(pos, side, Tacz.menuClass(), 0);
+        Tacz.Shape shape = Tacz.shape(state);
+        layout = switch (shape) {
+            case SINGLE -> SINGLE;
+            case WIDE -> WIDE;
+            case TALL -> TALL;
+        };
+        BlockPos found = Minecraft.getInstance().level == null ? null : Tacz.root(Minecraft.getInstance().level, pos);
+        root = found == null ? pos : found;
         Vec3 foot = Vec3.atBottomCenterOf(root);
-        if (layout == WIDE) {
-            Direction length = state.getValue(AbstractGunSmithTableBlock.FACING);
-            foot = foot.add(Vec3.atLowerCornerOf(length.getNormal()).scale(0.5));
+        if (shape == Tacz.Shape.WIDE) {
+            foot = foot.add(Vec3.atLowerCornerOf(Tacz.length(state).getNormal()).scale(0.5));
         }
         origin = foot;
     }
 
     // ---- recipes ------------------------------------------------------------------------------------------
 
-    /** The same tabs and filter the server's GunSmithTableMenu.doCraft accepts, so nothing listed is refused. */
-    private void load(GunSmithTableMenu menu, ClientLevel level) {
-        tabs.clear();
-        tab = page = 0;
-        selected = null;
-        ResourceLocation blockId = menu.getBlockId();
-        boolean everything = DefaultAssets.DEFAULT_BLOCK_ID.equals(blockId) && !SyncConfig.ENABLE_TABLE_FILTER.get();
-        Optional<CommonBlockIndex> index = blockId == null ? Optional.empty() : TimelessAPI.getCommonBlockIndex(blockId);
-        List<TabConfig> configs = everything ? TabConfig.DEFAULT_TABS : index.map(i -> i.getData().getTabs()).orElse(List.of());
-        RecipeFilter filter = everything ? null : index.map(CommonBlockIndex::getFilter).orElse(null);
-        List<RecipeHolder<GunSmithTableRecipe>> all = level.getRecipeManager().getAllRecipesFor(ModRecipe.GUN_SMITH_TABLE_CRAFTING);
-        for (TabConfig config : configs) {
-            List<RecipeHolder<GunSmithTableRecipe>> recipes = all.stream()
-                    .filter(holder -> config.id().equals(holder.value().getTab()))
-                    .filter(holder -> filter == null || filter.contains(holder.id()))
-                    .toList();
-            if (!recipes.isEmpty()) {
-                tabs.add(new Tab(Component.translatable(config.name()), recipes, tabScale(config.id())));
-            }
-        }
-        loadedFor = menu.containerId;
-    }
-
     /**
      * Whether the open menu is this table's: its table type matches the one this block keeps. The server may still hold
      * a neighbouring table's menu (tables side by side, a move from one to the other); its recipes are not ours to show,
      * nor to craft from.
      */
-    private boolean ours(GunSmithTableMenu menu, ClientLevel level) {
-        if (!(level.getBlockEntity(root) instanceof GunSmithTableBlockEntity table)) return false;
-        ResourceLocation kept = table.getId() == null ? DefaultAssets.DEFAULT_BLOCK_ID : table.getId();
-        return kept.equals(menu.getBlockId());
+    private boolean ours(AbstractContainerMenu menu, ClientLevel level) {
+        ResourceLocation kept = Tacz.keptType(level, root);
+        return kept != null && kept.equals(Tacz.menuType(menu));
+    }
+
+    private void load(AbstractContainerMenu menu, ClientLevel level) {
+        tabs = Tacz.tabs(Tacz.menuType(menu), level);
+        tab = page = 0;
+        selected = null;
+        loadedFor = menu.containerId;
     }
 
     /**
@@ -204,9 +173,9 @@ public final class GunSmithScene extends AddonMenuStation<GunSmithTableMenu> {
         return layout.cols() * layout.rows();
     }
 
-    private List<RecipeHolder<GunSmithTableRecipe>> visible() {
+    private List<Tacz.Recipe> visible() {
         if (tabs.isEmpty()) return List.of();
-        List<RecipeHolder<GunSmithTableRecipe>> recipes = tabs.get(tab).recipes();
+        List<Tacz.Recipe> recipes = tabs.get(tab).recipes();
         return recipes.subList(page * pageSize(), Math.min(recipes.size(), (page + 1) * pageSize()));
     }
 
@@ -214,18 +183,18 @@ public final class GunSmithScene extends AddonMenuStation<GunSmithTableMenu> {
         return tabs.isEmpty() ? 1 : Math.max(1, (tabs.get(tab).recipes().size() + pageSize() - 1) / pageSize());
     }
 
-    private static int count(GunSmithTableIngredient ingredient, Inventory inventory) {
+    private static int count(Tacz.Input input, Inventory inventory) {
         int count = 0;
         for (ItemStack stack : inventory.items) {
-            if (!stack.isEmpty() && ingredient.getIngredient().test(stack)) count += stack.getCount();
+            if (!stack.isEmpty() && input.items().test(stack)) count += stack.getCount();
         }
         return count;
     }
 
-    private static boolean canCraft(GunSmithTableRecipe recipe, Inventory inventory) {
+    private static boolean canCraft(Tacz.Recipe recipe, Inventory inventory) {
         if (inventory.player.isCreative()) return true;
-        for (GunSmithTableIngredient ingredient : recipe.getInputs()) {
-            if (count(ingredient, inventory) < ingredient.getCount()) return false;
+        for (Tacz.Input input : recipe.inputs()) {
+            if (count(input, inventory) < input.count()) return false;
         }
         return true;
     }
@@ -234,7 +203,7 @@ public final class GunSmithScene extends AddonMenuStation<GunSmithTableMenu> {
     public void tick() {
         super.tick();
         LocalPlayer player = Minecraft.getInstance().player;
-        GunSmithTableMenu menu = menu();
+        AbstractContainerMenu menu = menu();
         ClientLevel level = Minecraft.getInstance().level;
         if (menu != null && menu.containerId != loadedFor && level != null && ours(menu, level)) {
             load(menu, level);
@@ -246,10 +215,10 @@ public final class GunSmithScene extends AddonMenuStation<GunSmithTableMenu> {
         }
         craftable.clear();
         if (player == null) return;
-        List<RecipeHolder<GunSmithTableRecipe>> check = new ArrayList<>(visible());
+        List<Tacz.Recipe> check = new ArrayList<>(visible());
         if (selected != null) check.add(selected);
-        for (RecipeHolder<GunSmithTableRecipe> holder : check) {
-            if (canCraft(holder.value(), player.getInventory())) craftable.add(holder.id());
+        for (Tacz.Recipe recipe : check) {
+            if (canCraft(recipe, player.getInventory())) craftable.add(recipe.id());
         }
     }
 
@@ -349,9 +318,7 @@ public final class GunSmithScene extends AddonMenuStation<GunSmithTableMenu> {
         BlockHitResult hit = mc.level.clip(new ClipContext(ray[0], ray[0].add(ray[1].scale(6)), ClipContext.Block.OUTLINE,
                 ClipContext.Fluid.NONE, mc.player));
         if (hit.getType() != HitResult.Type.BLOCK) return null;
-        BlockState state = mc.level.getBlockState(hit.getBlockPos());
-        return state.getBlock() instanceof AbstractGunSmithTableBlock table
-                && table.getRootPos(hit.getBlockPos(), state).equals(root) ? hit.getLocation() : null;
+        return root.equals(Tacz.root(mc.level, hit.getBlockPos())) ? hit.getLocation() : null;
     }
 
     /** Out of the work: up from a top, towards the player from a board. */
@@ -385,22 +352,22 @@ public final class GunSmithScene extends AddonMenuStation<GunSmithTableMenu> {
             return;
         }
         if (hovered < 0) return;
-        RecipeHolder<GunSmithTableRecipe> recipe = visible().get(hovered);
+        Tacz.Recipe recipe = visible().get(hovered);
         if (selected == null || !selected.id().equals(recipe.id())) {
             selected = recipe;
-            selectedScale = tabs.get(tab).scale();
+            selectedScale = tabScale(tabs.get(tab).id());
             sound(SoundEvents.ARMOR_EQUIP_IRON.value(), 0.4f, 1.2f);
             return;
         }
-        GunSmithTableMenu menu = menu();
+        AbstractContainerMenu menu = menu();
         LocalPlayer player = Minecraft.getInstance().player;
-        if (menu == null || menu.containerId != loadedFor || player == null || !canCraft(recipe.value(), player.getInventory())) {
+        if (menu == null || menu.containerId != loadedFor || player == null || !canCraft(recipe, player.getInventory())) {
             deny();
             return;
         }
         int menuId = menu.containerId;
         sound(SoundEvents.SMITHING_TABLE_USE, 0.5f, 1f);
-        startMove(CRAFT_LENGTH, CRAFT_BEAT, () -> ClientPlayNetworking.send(new ClientMessageCraft(recipe.id(), menuId)));
+        startMove(CRAFT_LENGTH, CRAFT_BEAT, () -> TaczClient.craft(recipe.id(), menuId));
     }
 
     @Override
@@ -421,13 +388,13 @@ public final class GunSmithScene extends AddonMenuStation<GunSmithTableMenu> {
         Vec3 eye = camera.getPosition();
         // Lying flat on a top; standing up, facing the player, on a board. What hovers is tipped towards the camera.
         float gridTilt = layout.upright() ? 90 : 0, hoverTilt = layout.upright() ? 90 : 70;
-        float tabScale = tabs.isEmpty() ? 1 : tabs.get(tab).scale();
-        List<RecipeHolder<GunSmithTableRecipe>> visible = visible();
+        float pageScale = tabs.isEmpty() ? 1 : tabScale(tabs.get(tab).id());
+        List<Tacz.Recipe> visible = visible();
         for (int i = 0; i < visible.size(); i++) {
-            RecipeHolder<GunSmithTableRecipe> holder = visible.get(i);
-            boolean chosen = selected != null && selected.id().equals(holder.id());
-            float scale = layout.scale() * tabScale * (i == hovered || chosen ? 1.15f : 1f);
-            float opacity = chosen || craftable.contains(holder.id()) ? 1f : 0.4f;
+            Tacz.Recipe recipe = visible.get(i);
+            boolean chosen = selected != null && selected.id().equals(recipe.id());
+            float scale = layout.scale() * pageScale * (i == hovered || chosen ? 1.15f : 1f);
+            float opacity = chosen || craftable.contains(recipe.id()) ? 1f : 0.4f;
             Vec3 at = cell(i);
             pose.pushPose();
             if (layout == WIDE) {
@@ -436,7 +403,7 @@ public final class GunSmithScene extends AddonMenuStation<GunSmithTableMenu> {
                 pose.mulPose(Axis.YP.rotationDegrees(DIAGONAL));
                 pose.translate(eye.x - at.x, eye.y - at.y, eye.z - at.z);
             }
-            ItemPlacer.render(pose, buffers, eye, holder.value().getOutput(), at, side, i, scale, gridTilt, light, opacity);
+            ItemPlacer.render(pose, buffers, eye, recipe.output(), at, side, i, scale, gridTilt, light, opacity);
             pose.popPose();
         }
         if (selected == null) return;
@@ -446,11 +413,11 @@ public final class GunSmithScene extends AddonMenuStation<GunSmithTableMenu> {
         double gather = t < 0 ? 0 : Math.min(1, t / CRAFT_BEAT);
         float pop = t < CRAFT_BEAT ? 1f : (float) (1 + 0.3 * Math.sin((t - CRAFT_BEAT) / (CRAFT_LENGTH - CRAFT_BEAT) * Math.PI));
         Vec3 showcase = showcase();
-        ItemPlacer.render(pose, buffers, eye, selected.value().getOutput(), showcase, side, 99, layout.showScale() * selectedScale * pop, hoverTilt, light);
+        ItemPlacer.render(pose, buffers, eye, selected.output(), showcase, side, 99, layout.showScale() * selectedScale * pop, hoverTilt, light);
 
-        List<GunSmithTableIngredient> inputs = selected.value().getInputs();
+        List<Tacz.Input> inputs = selected.inputs();
         for (int i = 0; i < inputs.size(); i++) {
-            ItemStack[] options = inputs.get(i).getIngredient().getItems();
+            ItemStack[] options = inputs.get(i).items().getItems();
             if (options.length == 0 || gather >= 1) continue;
             ItemStack shown = options[(int) Scene.clock() % options.length];
             Vec3 point = ingredientPoint(i, inputs.size()).lerp(showcase, gather * gather);
@@ -474,11 +441,11 @@ public final class GunSmithScene extends AddonMenuStation<GunSmithTableMenu> {
         }
         LocalPlayer player = Minecraft.getInstance().player;
         if (selected == null || player == null || moving()) return;
-        List<GunSmithTableIngredient> inputs = selected.value().getInputs();
+        List<Tacz.Input> inputs = selected.inputs();
         for (int i = 0; i < inputs.size(); i++) {
             double[] at = Picking.toGui(ingredientPoint(i, inputs.size()).add(0, -0.09, 0));
             if (at == null) continue;
-            int have = count(inputs.get(i), player.getInventory()), need = inputs.get(i).getCount();
+            int have = count(inputs.get(i), player.getInventory()), need = inputs.get(i).count();
             graphics.drawCenteredString(font, have + "/" + need, (int) at[0], (int) at[1], a | (have >= need ? 0x9BE38B : 0xE36B5B));
         }
     }

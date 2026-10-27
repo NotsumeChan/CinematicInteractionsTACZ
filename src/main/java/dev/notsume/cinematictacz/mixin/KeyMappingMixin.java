@@ -1,6 +1,7 @@
 package dev.notsume.cinematictacz.mixin;
 
 import com.mojang.blaze3d.platform.InputConstants;
+import dev.notsume.cinematictacz.tacz.Tacz;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.KeyMapping;
 import org.spongepowered.asm.mixin.Final;
@@ -23,9 +24,6 @@ import java.util.Map;
  */
 @Mixin(KeyMapping.class)
 abstract class KeyMappingMixin {
-    @Unique
-    private static final String TACZ = "key.category.tacz";
-
     @Shadow
     @Final
     private static Map<String, KeyMapping> ALL;
@@ -54,10 +52,10 @@ abstract class KeyMappingMixin {
     private static List<KeyMapping> cinematicTacz$sharing(InputConstants.Key key) {
         KeyMapping owner = MAP.get(key);
         if (owner == null) return List.of();
-        boolean taczOwns = TACZ.equals(owner.getCategory());
+        boolean taczOwns = Tacz.KEY_CATEGORY.equals(owner.getCategory());
         List<KeyMapping> others = new ArrayList<>(1);
         for (KeyMapping mapping : ALL.values()) {
-            if (mapping != owner && (taczOwns || TACZ.equals(mapping.getCategory()))
+            if (mapping != owner && (taczOwns || Tacz.KEY_CATEGORY.equals(mapping.getCategory()))
                     && key.equals(KeyBindingHelper.getBoundKeyOf(mapping))) {
                 others.add(mapping);
             }
