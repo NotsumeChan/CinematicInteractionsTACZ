@@ -1,10 +1,13 @@
 package dev.notsume.cinematictacz.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Axis;
 import com.tacz.guns.api.DefaultAssets;
 import com.tacz.guns.api.TimelessAPI;
 import com.tacz.guns.block.AbstractGunSmithTableBlock;
 import com.tacz.guns.block.GunSmithTableBlockB;
+import com.tacz.guns.block.GunSmithTableBlockC;
+import com.tacz.guns.block.entity.GunSmithTableBlockEntity;
 import com.tacz.guns.config.sync.SyncConfig;
 import com.tacz.guns.crafting.GunSmithTableIngredient;
 import com.tacz.guns.crafting.GunSmithTableRecipe;
@@ -31,12 +34,17 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.RecipeHolder;
+import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
@@ -47,50 +55,111 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * The gun smith table scene: the table's recipes lie on its top as a grid of parts, one category at a time. Click a
- * part to choose it (its ingredients line up at the near edge), click it again to craft: the ingredients gather under
- * the hovering result while TACZ's own craft packet goes to the server, which takes the materials and hands the item.
+ * The gun smith table scene: the table's recipes are laid out as a grid of parts, one category at a time. Click a part
+ * to choose it (it hovers before the camera with its ingredients), click it again to craft: the ingredients gather into
+ * the part while TACZ's own craft packet goes to the server, which takes the materials and hands the item.
+ * <p>
+ * Each table shape has its own {@link Layout}, fitted to the default gunpack's models: the low tables are worked on
+ * their free tabletop, the tall one (C, two blocks high) on its front, like a tool board.
  */
 public final class GunSmithScene extends AddonMenuStation<GunSmithTableMenu> {
-    private static final int COLS = 4, ROWS = 2, PAGE = COLS * ROWS;
-    /** Grid spacing and the two rows on the far half of the top; the ingredients lie on the near half. */
-    private static final double SPACING = 0.2, FAR_ROW = -0.05, NEAR_ROW = 0.24, INGREDIENT_SPACING = 0.16;
+    private static final Vec3 UP = new Vec3(0, 1, 0);
     private static final double CRAFT_LENGTH = 0.9, CRAFT_BEAT = 0.55;
 
-    private record Tab(Component name, List<RecipeHolder<GunSmithTableRecipe>> recipes) {}
+    /**
+     * Where everything goes, in blocks from the middle of the table's footprint at its foot: {@code out} towards the
+     * player, {@code up} from the floor. The grid's first row is at (gridOut, gridUp); further rows step away from the
+     * player on a top, downwards on an upright board.
+     */
+    private record Layout(boolean upright, double surface,
+                          int cols, int rows, double spacing, float scale, double gridOut, double gridUp,
+                          double showOut, double showUp, float showScale,
+                          double ingOut, double ingUp, float ingScale, double ingSpacing,
+                          double standOut, double camOut, double camUp, float camPitch,
+                          double restOut, double restUp, double restAcross) {}
 
-    private final Vec3 top;
+    // ponytail: fitted by eye to tacz_default_gun's models (2026-10-27 screenshots); other gunpacks may need their own
+    /** Ammo bench (A): a press and a tall machine fill the back and right; the free mat is the front half. */
+    private static final Layout SINGLE = new Layout(false, 1.0,
+            3, 2, 0.2, 0.5f, 0.32, 1.0,
+            0.35, 1.48, 0.7f,
+            0.42, 1.08, 0.4f, 0.13,
+            0.95, 0.95, 1.8, 40,
+            0.4, 1.1, 0.3);
+    /** Gun smith table (B): a long desk at 15 px, with trays and a tool wall along its back. */
+    private static final Layout WIDE = new Layout(false, 0.94,
+            5, 2, 0.34, 0.8f, 0.25, 1.02,
+            0.05, 1.5, 1f,
+            0.3, 1.36, 0.5f, 0.16,
+            0.9, 0.8, 1.64, 36,
+            0.32, 1.04, 0.28);
+    /** Attachment bench (C): two blocks tall, worked on its front face like a tool board. */
+    private static final Layout TALL = new Layout(true, 1.0,
+            3, 2, 0.25, 0.8f, 0.56, 1.4,
+            0.86, 1.63, 1f,
+            0.56, 0.7, 0.8f, 0.16,
+            1.6, 1.85, 1.15, 4,
+            1.0, 0.55, 0.35);
+
+    /** {@code scale}: long guns are drawn smaller than pistols, so a page of rifles fits the table as one of pistols. */
+    private record Tab(Component name, List<RecipeHolder<GunSmithTableRecipe>> recipes, float scale) {}
+
+    /** Guns on the gun smith table are turned so long ones lie side by side on a slant, as on a rack, not end to end. */
+    private static final float DIAGONAL = 30;
+
+    // ponytail: by the default gunpack's tab ids; a gunpack's own long-gun tabs fall back to 0.7
+    private static float tabScale(ResourceLocation tab) {
+        return switch (tab.getPath()) {
+            case "pistol" -> 1f;
+            case "smg" -> 0.8f;
+            case "shotgun", "rifle", "misc" -> 0.65f;
+            case "sniper", "mg", "rpg" -> 0.5f;
+            default -> tab.getNamespace().equals("tacz") ? 1f : 0.7f;
+        };
+    }
+
+    private final Layout layout;
+    /** The middle of the table's footprint, at its foot. */
+    private final Vec3 origin;
+    /** The table's root block: both blocks of a two-block table lead here. */
+    private final BlockPos root;
+
     private final List<Tab> tabs = new ArrayList<>();
-    private boolean loaded;
+    /**
+     * The menu the recipes were read from. Moving over from a neighbouring table, the old table's menu is still open for
+     * a moment: whichever menu is open now decides.
+     */
+    private int loadedFor = -1;
+    /** Ticks without this table's menu open, and how often it was asked for again. */
+    private int waiting, asked;
     private int tab, page, hovered = -1;
     @Nullable
     private RecipeHolder<GunSmithTableRecipe> selected;
+    /** The scale of the tab the chosen part was picked from: it keeps it while the player leafs through others. */
+    private float selectedScale = 1;
     /** Recipes on the current page (and the chosen one) the player has the materials for, refreshed every tick. */
     private final Set<ResourceLocation> craftable = new HashSet<>();
 
     public GunSmithScene(BlockPos pos, BlockState state, Direction side) {
         super(pos, side, GunSmithTableMenu.class, 0);
-        top = tableTop(pos, state);
-    }
-
-    /** The middle of the whole table (both blocks of the two-block ones), on its surface. */
-    private static Vec3 tableTop(BlockPos pos, BlockState state) {
-        if (!(state.getBlock() instanceof AbstractGunSmithTableBlock table)) {
-            return Vec3.atCenterOf(pos).add(0, 0.5, 0);
-        }
-        Vec3 center = Vec3.atCenterOf(table.getRootPos(pos, state));
-        if (table instanceof GunSmithTableBlockB) {
+        layout = state.getBlock() instanceof GunSmithTableBlockC ? TALL
+                : state.getBlock() instanceof GunSmithTableBlockB ? WIDE : SINGLE;
+        root = state.getBlock() instanceof AbstractGunSmithTableBlock table ? table.getRootPos(pos, state) : pos;
+        Vec3 foot = Vec3.atBottomCenterOf(root);
+        if (layout == WIDE) {
             Direction length = state.getValue(AbstractGunSmithTableBlock.FACING);
-            center = center.add(Vec3.atLowerCornerOf(length.getNormal()).scale(0.5));
+            foot = foot.add(Vec3.atLowerCornerOf(length.getNormal()).scale(0.5));
         }
-        // ponytail: a full block's height for every table; TACZ's models differ (C is two blocks tall), calibrate in game
-        return center.add(0, 0.5, 0);
+        origin = foot;
     }
 
     // ---- recipes ------------------------------------------------------------------------------------------
 
     /** The same tabs and filter the server's GunSmithTableMenu.doCraft accepts, so nothing listed is refused. */
     private void load(GunSmithTableMenu menu, ClientLevel level) {
+        tabs.clear();
+        tab = page = 0;
+        selected = null;
         ResourceLocation blockId = menu.getBlockId();
         boolean everything = DefaultAssets.DEFAULT_BLOCK_ID.equals(blockId) && !SyncConfig.ENABLE_TABLE_FILTER.get();
         Optional<CommonBlockIndex> index = blockId == null ? Optional.empty() : TimelessAPI.getCommonBlockIndex(blockId);
@@ -103,20 +172,46 @@ public final class GunSmithScene extends AddonMenuStation<GunSmithTableMenu> {
                     .filter(holder -> filter == null || filter.contains(holder.id()))
                     .toList();
             if (!recipes.isEmpty()) {
-                tabs.add(new Tab(Component.translatable(config.name()), recipes));
+                tabs.add(new Tab(Component.translatable(config.name()), recipes, tabScale(config.id())));
             }
         }
-        loaded = true;
+        loadedFor = menu.containerId;
+    }
+
+    /**
+     * Whether the open menu is this table's: its table type matches the one this block keeps. The server may still hold
+     * a neighbouring table's menu (tables side by side, a move from one to the other); its recipes are not ours to show,
+     * nor to craft from.
+     */
+    private boolean ours(GunSmithTableMenu menu, ClientLevel level) {
+        if (!(level.getBlockEntity(root) instanceof GunSmithTableBlockEntity table)) return false;
+        ResourceLocation kept = table.getId() == null ? DefaultAssets.DEFAULT_BLOCK_ID : table.getId();
+        return kept.equals(menu.getBlockId());
+    }
+
+    /**
+     * Moving quickly from one table to the next, the server can keep the old table's menu and never open this one's.
+     * The scene then uses the table as the player would, which opens its menu behind the scene.
+     */
+    private void askForMenu() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.gameMode == null || mc.player == null) return;
+        asked++;
+        mc.gameMode.useItemOn(mc.player, InteractionHand.MAIN_HAND, new BlockHitResult(center(), side, root, false));
+    }
+
+    private int pageSize() {
+        return layout.cols() * layout.rows();
     }
 
     private List<RecipeHolder<GunSmithTableRecipe>> visible() {
         if (tabs.isEmpty()) return List.of();
         List<RecipeHolder<GunSmithTableRecipe>> recipes = tabs.get(tab).recipes();
-        return recipes.subList(page * PAGE, Math.min(recipes.size(), (page + 1) * PAGE));
+        return recipes.subList(page * pageSize(), Math.min(recipes.size(), (page + 1) * pageSize()));
     }
 
     private int pages() {
-        return tabs.isEmpty() ? 1 : Math.max(1, (tabs.get(tab).recipes().size() + PAGE - 1) / PAGE);
+        return tabs.isEmpty() ? 1 : Math.max(1, (tabs.get(tab).recipes().size() + pageSize() - 1) / pageSize());
     }
 
     private static int count(GunSmithTableIngredient ingredient, Inventory inventory) {
@@ -140,8 +235,14 @@ public final class GunSmithScene extends AddonMenuStation<GunSmithTableMenu> {
         super.tick();
         LocalPlayer player = Minecraft.getInstance().player;
         GunSmithTableMenu menu = menu();
-        if (!loaded && menu != null && Minecraft.getInstance().level != null) {
-            load(menu, Minecraft.getInstance().level);
+        ClientLevel level = Minecraft.getInstance().level;
+        if (menu != null && menu.containerId != loadedFor && level != null && ours(menu, level)) {
+            load(menu, level);
+        }
+        if (menu != null && menu.containerId == loadedFor) {
+            waiting = 0;
+        } else if (++waiting % 10 == 0 && asked < 3) {
+            askForMenu();
         }
         craftable.clear();
         if (player == null) return;
@@ -154,43 +255,66 @@ public final class GunSmithScene extends AddonMenuStation<GunSmithTableMenu> {
 
     // ---- where things lie ---------------------------------------------------------------------------------
 
+    private Vec3 at(double across, double out, double up) {
+        return origin.add(right().scale(across)).add(side().scale(out)).add(0, up, 0);
+    }
+
+    /**
+     * The middle of the work: the free tabletop, or the middle of the upright board. Cinematic Interactions checks it is
+     * in view against the blocks, which are full cubes: never below their top, even where the model's desk is lower.
+     */
     @Override
     public Vec3 center() {
-        return top;
+        return layout.upright()
+                ? at(0, 0.5, layout.gridUp() - layout.spacing() * (layout.rows() - 1) / 2)
+                : at(0, 0, Math.max(layout.surface(), 1.0));
+    }
+
+    @Override
+    public boolean workOnTop() {
+        return !layout.upright();
     }
 
     private Vec3 cell(int index) {
-        int column = index % COLS, row = index / COLS;
-        return top.add(right().scale((column - (COLS - 1) / 2.0) * SPACING))
-                .add(side().scale(FAR_ROW - row * SPACING)).add(0, 0.01, 0);
+        int column = index % layout.cols(), row = index / layout.cols();
+        double across = (column - (layout.cols() - 1) / 2.0) * layout.spacing();
+        return layout.upright()
+                ? at(across, layout.gridOut(), layout.gridUp() - row * layout.spacing())
+                : at(across, layout.gridOut() - row * layout.spacing(), layout.gridUp() + 0.01);
     }
 
     private Vec3 ingredientPoint(int index, int of) {
-        return top.add(right().scale((index - (of - 1) / 2.0) * INGREDIENT_SPACING))
-                .add(side().scale(NEAR_ROW)).add(0, 0.01, 0);
+        return at((index - (of - 1) / 2.0) * layout.ingSpacing(), layout.ingOut(), layout.ingUp());
     }
 
-    /** Where the chosen part hovers, over the middle of the top. */
+    /** Where the chosen part hovers: before the camera, in front of the table's own model and above the grid on screen. */
     private Vec3 showcase() {
-        return top.add(0, 0.28 + Math.sin(Scene.clock() * 2) * 0.015, 0);
+        return at(0, layout.showOut(), layout.showUp() + Math.sin(Scene.clock() * 2) * 0.015);
+    }
+
+    /** The category title: past the grid's last row on a top, over the first row on a board. */
+    private Vec3 titlePoint() {
+        return layout.upright()
+                ? at(0, layout.gridOut(), layout.gridUp() + layout.spacing() * 0.6)
+                : at(0, layout.gridOut() - layout.rows() * layout.spacing() + 0.1, layout.gridUp() + 0.05);
     }
 
     // ---- camera and hands ---------------------------------------------------------------------------------
 
     @Override
     public List<Vec3> approach(LocalPlayer player) {
-        Vec3 stand = top.add(side().scale(0.9));
+        Vec3 stand = at(0, layout.standOut(), 0);
         return List.of(new Vec3(stand.x, player.getY(), stand.z));
     }
 
     @Override
     public CameraRig.Pose lean() {
-        return new CameraRig.Pose(top.add(side().scale(0.8)).add(0, 0.7, 0), side.getOpposite().toYRot(), 36, 0);
+        return new CameraRig.Pose(at(0, layout.camOut(), layout.camUp()), side.getOpposite().toYRot(), layout.camPitch(), 0);
     }
 
     @Override
     public Vec3 rest(boolean rightHand) {
-        return top.add(side().scale(0.32)).add(right().scale(rightHand ? 0.28 : -0.28)).add(0, 0.1, 0);
+        return at(rightHand ? layout.restAcross() : -layout.restAcross(), layout.restOut(), layout.restUp());
     }
 
     @Override
@@ -198,21 +322,46 @@ public final class GunSmithScene extends AddonMenuStation<GunSmithTableMenu> {
         hovered = -1;
         aim = null;
         if (overPanel || moving()) return;
-        Vec3 hit = Picking.cursorOnPlane(top.y + 0.02);
-        if (hit == null) return;
-        Vec3 offset = hit.subtract(top);
-        int column = (int) Math.round(offset.dot(right()) / SPACING + (COLS - 1) / 2.0);
-        int row = (int) Math.round((FAR_ROW - offset.dot(side())) / SPACING);
-        int index = row * COLS + column;
-        if (column >= 0 && column < COLS && row >= 0 && row < ROWS && index < visible().size()) {
-            hovered = index;
-            aim = cell(index);
+        Vec3 hit = layout.upright()
+                ? Picking.cursorOnPlane(at(0, layout.gridOut(), 0), side())
+                : Picking.cursorOnPlane(origin.y + layout.gridUp() + 0.02);
+        if (hit != null) {
+            Vec3 offset = hit.subtract(origin);
+            double along = layout.upright() ? layout.gridUp() - offset.y : layout.gridOut() - offset.dot(side());
+            int column = (int) Math.round(offset.dot(right()) / layout.spacing() + (layout.cols() - 1) / 2.0);
+            int row = (int) Math.round(along / layout.spacing());
+            int index = row * layout.cols() + column;
+            if (column >= 0 && column < layout.cols() && row >= 0 && row < layout.rows() && index < visible().size()) {
+                hovered = index;
+                aim = cell(index);
+                return;
+            }
         }
+        // Off the grid but on this table (its other block too): still our work, not a neighbouring station to move to.
+        aim = onOwnTable();
+    }
+
+    @Nullable
+    private Vec3 onOwnTable() {
+        Vec3[] ray = Picking.cursorRay();
+        Minecraft mc = Minecraft.getInstance();
+        if (ray == null || mc.level == null || mc.player == null) return null;
+        BlockHitResult hit = mc.level.clip(new ClipContext(ray[0], ray[0].add(ray[1].scale(6)), ClipContext.Block.OUTLINE,
+                ClipContext.Fluid.NONE, mc.player));
+        if (hit.getType() != HitResult.Type.BLOCK) return null;
+        BlockState state = mc.level.getBlockState(hit.getBlockPos());
+        return state.getBlock() instanceof AbstractGunSmithTableBlock table
+                && table.getRootPos(hit.getBlockPos(), state).equals(root) ? hit.getLocation() : null;
+    }
+
+    /** Out of the work: up from a top, towards the player from a board. */
+    private Vec3 out() {
+        return layout.upright() ? side() : UP;
     }
 
     @Override
     public Vec3 handTarget(Vec3 target, Vec3 shoulder, boolean carrying, double tap) {
-        return target.add(0, carrying ? 0.13 : 0.08, 0);
+        return target.add(out().scale(carrying ? 0.13 : 0.08));
     }
 
     @Override
@@ -222,7 +371,7 @@ public final class GunSmithScene extends AddonMenuStation<GunSmithTableMenu> {
 
     @Override
     protected Vec3 restPoint(int slot) {
-        return top;
+        return center();
     }
 
     // ---- actions ------------------------------------------------------------------------------------------
@@ -239,12 +388,13 @@ public final class GunSmithScene extends AddonMenuStation<GunSmithTableMenu> {
         RecipeHolder<GunSmithTableRecipe> recipe = visible().get(hovered);
         if (selected == null || !selected.id().equals(recipe.id())) {
             selected = recipe;
+            selectedScale = tabs.get(tab).scale();
             sound(SoundEvents.ARMOR_EQUIP_IRON.value(), 0.4f, 1.2f);
             return;
         }
         GunSmithTableMenu menu = menu();
         LocalPlayer player = Minecraft.getInstance().player;
-        if (menu == null || player == null || !canCraft(recipe.value(), player.getInventory())) {
+        if (menu == null || menu.containerId != loadedFor || player == null || !canCraft(recipe.value(), player.getInventory())) {
             deny();
             return;
         }
@@ -258,9 +408,10 @@ public final class GunSmithScene extends AddonMenuStation<GunSmithTableMenu> {
         page = Math.clamp(page + (delta < 0 ? 1 : -1), 0, pages() - 1);
     }
 
-    private void sound(net.minecraft.sounds.SoundEvent event, float volume, float pitch) {
+    private void sound(SoundEvent event, float volume, float pitch) {
         ClientLevel level = Minecraft.getInstance().level;
-        if (level != null) level.playLocalSound(top.x, top.y, top.z, event, SoundSource.BLOCKS, volume, pitch, false);
+        Vec3 work = center();
+        if (level != null) level.playLocalSound(work.x, work.y, work.z, event, SoundSource.BLOCKS, volume, pitch, false);
     }
 
     // ---- drawing ------------------------------------------------------------------------------------------
@@ -268,41 +419,54 @@ public final class GunSmithScene extends AddonMenuStation<GunSmithTableMenu> {
     @Override
     public void renderScene(PoseStack pose, MultiBufferSource buffers, Camera camera, int light) {
         Vec3 eye = camera.getPosition();
+        // Lying flat on a top; standing up, facing the player, on a board. What hovers is tipped towards the camera.
+        float gridTilt = layout.upright() ? 90 : 0, hoverTilt = layout.upright() ? 90 : 70;
+        float tabScale = tabs.isEmpty() ? 1 : tabs.get(tab).scale();
         List<RecipeHolder<GunSmithTableRecipe>> visible = visible();
         for (int i = 0; i < visible.size(); i++) {
             RecipeHolder<GunSmithTableRecipe> holder = visible.get(i);
-            if (holder == selected) continue;
-            float scale = i == hovered ? 1.15f : 1f;
-            float opacity = craftable.contains(holder.id()) ? 1f : 0.4f;
-            ItemPlacer.render(pose, buffers, eye, holder.value().getOutput(), cell(i), side, i, scale, 0, light, opacity);
+            boolean chosen = selected != null && selected.id().equals(holder.id());
+            float scale = layout.scale() * tabScale * (i == hovered || chosen ? 1.15f : 1f);
+            float opacity = chosen || craftable.contains(holder.id()) ? 1f : 0.4f;
+            Vec3 at = cell(i);
+            pose.pushPose();
+            if (layout == WIDE) {
+                // ItemPlacer lays the item at its point: turning the pose round that point turns the item in place
+                pose.translate(at.x - eye.x, at.y - eye.y, at.z - eye.z);
+                pose.mulPose(Axis.YP.rotationDegrees(DIAGONAL));
+                pose.translate(eye.x - at.x, eye.y - at.y, eye.z - at.z);
+            }
+            ItemPlacer.render(pose, buffers, eye, holder.value().getOutput(), at, side, i, scale, gridTilt, light, opacity);
+            pose.popPose();
         }
         if (selected == null) return;
 
-        // While crafting: the ingredients slide in under the part and shrink away, then the part pops.
+        // While crafting: the ingredients slide into the part and shrink away, then the part pops.
         double t = moveTime();
         double gather = t < 0 ? 0 : Math.min(1, t / CRAFT_BEAT);
         float pop = t < CRAFT_BEAT ? 1f : (float) (1 + 0.3 * Math.sin((t - CRAFT_BEAT) / (CRAFT_LENGTH - CRAFT_BEAT) * Math.PI));
-        ItemPlacer.render(pose, buffers, eye, selected.value().getOutput(), showcase(), side, 99, 1.6f * pop, 70, light);
+        Vec3 showcase = showcase();
+        ItemPlacer.render(pose, buffers, eye, selected.value().getOutput(), showcase, side, 99, layout.showScale() * selectedScale * pop, hoverTilt, light);
 
         List<GunSmithTableIngredient> inputs = selected.value().getInputs();
         for (int i = 0; i < inputs.size(); i++) {
             ItemStack[] options = inputs.get(i).getIngredient().getItems();
             if (options.length == 0 || gather >= 1) continue;
-            ItemStack shown = options[(int) (Scene.clock()) % options.length];
-            Vec3 at = ingredientPoint(i, inputs.size()).lerp(showcase().add(0, -0.1, 0), gather * gather);
-            ItemPlacer.render(pose, buffers, eye, shown, at, side, 200 + i, (float) (1 - gather * 0.7), 0, light);
+            ItemStack shown = options[(int) Scene.clock() % options.length];
+            Vec3 point = ingredientPoint(i, inputs.size()).lerp(showcase, gather * gather);
+            ItemPlacer.render(pose, buffers, eye, shown, point, side, 200 + i, (float) (layout.ingScale() * (1 - gather * 0.7)), hoverTilt, light);
         }
     }
 
     @Override
     public void renderWorld(PoseStack pose, MultiBufferSource buffers, Vec3 camera, int light) {}
 
-    /** The category and page over the far edge, and under each ingredient what the player has of what it needs. */
+    /** The category and page beside the grid, and under each ingredient what the player has of what it needs. */
     @Override
     public void renderScreen(GuiGraphics graphics, Font font, float alpha) {
         if (alpha < 0.05f) return;
         int a = (int) (alpha * 255) << 24;
-        double[] head = Picking.toGui(top.add(side().scale(FAR_ROW - ROWS * SPACING)).add(0, 0.05, 0));
+        double[] head = Picking.toGui(titlePoint());
         if (head != null) {
             Component title = tabs.isEmpty() ? Component.translatable("cinematic_tacz.empty")
                     : Component.literal("< ").append(tabs.get(tab).name()).append("  " + (page + 1) + "/" + pages() + " >");
@@ -312,7 +476,7 @@ public final class GunSmithScene extends AddonMenuStation<GunSmithTableMenu> {
         if (selected == null || player == null || moving()) return;
         List<GunSmithTableIngredient> inputs = selected.value().getInputs();
         for (int i = 0; i < inputs.size(); i++) {
-            double[] at = Picking.toGui(ingredientPoint(i, inputs.size()).add(side().scale(0.07)));
+            double[] at = Picking.toGui(ingredientPoint(i, inputs.size()).add(0, -0.09, 0));
             if (at == null) continue;
             int have = count(inputs.get(i), player.getInventory()), need = inputs.get(i).getCount();
             graphics.drawCenteredString(font, have + "/" + need, (int) at[0], (int) at[1], a | (have >= need ? 0x9BE38B : 0xE36B5B));

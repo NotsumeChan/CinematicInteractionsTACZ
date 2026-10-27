@@ -11,6 +11,10 @@ repositories {
     maven { url = 'https://api.modrinth.com/maven'; content { includeGroup 'maven.modrinth' } }
 }
 
+configurations {
+    hostMods { transitive = false }
+}
+
 dependencies {
     minecraft "com.mojang:minecraft:${minecraft_version}"
     // Mojang names with Parchment parameters, as Cinematic Interactions uses (TACZ's own Yarn names are remapped by Loom).
@@ -21,10 +25,29 @@ dependencies {
     modImplementation "net.fabricmc:fabric-loader:${loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
 
-    // Neither host is bundled: players install Cinematic Interactions and TaCZ Refabricated themselves.
-    modCompileOnly files("libs/${cinematic_jar}")
+    // Never bundled: players install the hosts themselves.
+    modImplementation files("libs/${cinematic_jar}")
     modCompileOnly "maven.modrinth:tacz-refabricated:${tacz_version}"
     modCompileOnly "maven.modrinth:forge-config-api-port:${fcap_version}"
+    hostMods "maven.modrinth:tacz-refabricated:${tacz_version}"
+    hostMods "maven.modrinth:forge-config-api-port:${fcap_version}"
+}
+
+loom {
+    runs {
+        client { client(); runDir 'run/client' }
+        server { server(); runDir 'run/server'; programArg '--nogui' }
+    }
+}
+
+// TACZ and Forge Config API Port carry nested libraries (night-config, LuaJ ...) that a dev classpath does not unpack:
+// the dev runs load their real JARs from mods/, as a player's game does.
+['client', 'server'].each { side ->
+    def copyHosts = tasks.register("${side}HostMods", Copy) {
+        from configurations.hostMods
+        into "run/${side}/mods"
+    }
+    tasks.matching { it.name == "run${side.capitalize()}" }.configureEach { dependsOn copyHosts }
 }
 
 processResources {

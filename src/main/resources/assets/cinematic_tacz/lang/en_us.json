@@ -1,4 +1,5 @@
 {
   "cinematic_tacz.hint": "Click a part to choose it, click it again to craft · Right click: next category · Wheel: pages",
-  "cinematic_tacz.empty": "This table has no recipes"
+  "cinematic_tacz.empty": "This table has no recipes",
+  "cinematic_tacz.closer": "Step up to the table to work at it"
 }

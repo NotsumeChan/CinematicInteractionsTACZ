@@ -1,4 +1,5 @@
 {
   "cinematic_tacz.hint": "Clic en una pieza para elegirla, otro clic para fabricarla · Clic derecho: siguiente categoría · Rueda: páginas",
-  "cinematic_tacz.empty": "Esta mesa no tiene recetas"
+  "cinematic_tacz.empty": "Esta mesa no tiene recetas",
+  "cinematic_tacz.closer": "Acércate a la mesa para trabajar en ella"
 }

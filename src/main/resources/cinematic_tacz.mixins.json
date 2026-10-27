@@ -1,0 +1,7 @@
+{
+  "required": true,
+  "package": "dev.notsume.cinematictacz.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": ["KeyMappingMixin", "LanguageManagerMixin", "MinecraftMixin"],
+  "injectors": {"defaultRequire": 1}
+}
