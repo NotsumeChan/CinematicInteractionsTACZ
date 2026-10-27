@@ -3,8 +3,13 @@
 ## Files
 
 ```
+versions/<node>/gradle.properties   per node (1.21.1-fabric, 1.20.1-fabric, 1.21.1-neoforge, 1.20.1-forge): Java, Parchment, loader, host JARs
+build.fabric.gradle, build.neoforge.gradle, build.forge.gradle   a node's build, per loader (Loom, ModDevGradle, its legacy Forge plugin)
+src/fabric/resources/           fabric.mod.json, the Fabric mixin list
+src/neoforge/resources/         the NeoForge mixin list (no KeyMappingMixin); templates/META-INF/neoforge.mods.toml
+src/forge/resources/            the Forge mixin list (refmap, ServerPlayerMixin), pack.mcmeta; templates/META-INF/mods.toml
 src/main/java/dev/notsume/cinematictacz/
-  CinematicTacz.java            common init: one AddonStations.Definition per TACZ table
+  CinematicTacz.java            common init: one AddonStations.Definition per TACZ table (Fabric entry / NeoForge @Mod)
   tacz/Tacz.java                TACZ bridge (common): table ids, shapes, front side, root block, table type,
                                 tabs + recipes converted to own records (Tab, Recipe, Input), key category
   tacz/TaczClient.java          TACZ bridge (client): craft packet, table window check, inspect, press stroke
@@ -21,6 +26,8 @@ src/main/java/dev/notsume/cinematictacz/
   mixin/KeyMappingMixin.java    a mouse button reaches every key mapping on it when one is TACZ's (shoot/aim)
   mixin/LanguageManagerMixin.java  es_* (es_cl, es_mx …) loads es_es before en_us
   mixin/GunSmithTableBlockEntityMixin.java  (both sides) a table's second block answers with its root's table type
+  mixin/GunSmithTableMenuDataMixin.java  (NeoForge, both sides) the table writes its type into the open-menu packet
+  mixin/ServerPlayerMixin.java   (Forge, server) a table's menu opened with NetworkHooks and its type
   mixin/TaczTableRendererMixin.java  optional (require 0): ammo press stroke while crafting
 ```
 
@@ -56,6 +63,11 @@ Only `tacz/`, `TaczTableRendererMixin`, `GunSmithTableBlockEntityMixin` and `Add
 `beforeFrame()` lands blows/strokes on time; `handsOverride()` drives the hands while forging.
 
 ## Gotchas found
+
+- TACZ's NeoForge port sends a table menu's type as the open-menu packet's extra data, written by TACZ's own
+  `openMenu(provider, writer)`. Cinematic Interactions opens station menus with a plain `openMenu(provider)`, so the
+  client's menu had a null type and no table showed recipes. `GunSmithTableMenuDataMixin` writes it from NeoForge's
+  `IMenuProviderExtension.writeClientSideData`, which every `openMenu` calls.
 
 - TACZ gives both blocks of a two-block table a block entity, but sets the table type only on the root's. Cinematic
   Interactions opens the **clicked** block's menu, so the upper half of the attachment bench opened a default

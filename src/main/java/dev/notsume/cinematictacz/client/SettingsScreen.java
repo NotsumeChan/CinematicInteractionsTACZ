@@ -62,6 +62,10 @@ public final class SettingsScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        // before 1.20.2 a screen draws its own background
+        //? if <1.20.2 {
+        /*renderBackground(graphics);
+        *///?}
         super.render(graphics, mouseX, mouseY, partialTick);
         graphics.drawCenteredString(font, title, width / 2, 12, 0xFFFFFF);
         for (Heading heading : headings) graphics.drawCenteredString(font, heading.text(), width / 2, heading.y() + 4, 0xE0C080);

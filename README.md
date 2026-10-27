@@ -39,7 +39,7 @@ together from its materials.
 - **Crafting animations**: at the gun smith table you take its own hammer and drill, forge and drill the part, and it
   rises out of the smoke, then the new gun is drawn and inspected; the ammo press strokes down, its lever in your hand,
   and the rounds tumble out; the attachment workbench is a resin printer that prints the part out of its vat.
-- **Settings** (`config/cinematic_tacz-client.json`, or Mod Menu's button): each table's scene, the animations, the
+- **Settings** (`config/cinematic_tacz-client.json` and Mod Menu's button on Fabric, the mods list's Config button on NeoForge and Forge): each table's scene, the animations, the
   draw and inspect after forging, the particles.
 - **Material counter** `have/need` in green or red; parts you can't craft yet are see-through.
 - **Scene only**: TACZ's window never opens outside the scene (from afar, sneaking, or with TACZ's interact key); a
@@ -62,12 +62,36 @@ together from its materials.
 
 | Mod | Version | Link |
 |---|---|---|
-| Minecraft | 1.21.1 | |
+One JAR per Minecraft version and loader.
+
+**Fabric** (1.21.1 or 1.20.1)
+
+| Mod | Version | Link |
+|---|---|---|
 | Fabric Loader | ≥ 0.17.2 | [fabricmc.net](https://fabricmc.net/) |
-| Fabric API | 0.116.x | [Modrinth](https://modrinth.com/mod/fabric-api) |
+| Fabric API | 0.116.x (1.21.1), ≥ 0.92.12 (1.20.1) | [Modrinth](https://modrinth.com/mod/fabric-api) |
 | **Cinematic Interactions** (Fabric) | ≥ 0.18.25 | [dcvke/CinematicInteractions](https://github.com/dcvke/CinematicInteractions) |
 | **TaCZ Refabricated** | 0.7.x, from 0.7.1 | [Modrinth](https://modrinth.com/mod/tacz-refabricated) |
-| Forge Config API Port | v21.1.x (required by TACZ) | [Modrinth](https://modrinth.com/mod/forge-config-api-port) |
+| Forge Config API Port | v21.1.x (1.21.1), v8.0.x (1.20.1); required by TACZ | [Modrinth](https://modrinth.com/mod/forge-config-api-port) |
+| Mod Menu | optional, for the settings button | [Modrinth](https://modrinth.com/mod/modmenu) |
+
+**NeoForge** (1.21.1)
+
+| Mod | Version | Link |
+|---|---|---|
+| NeoForge | ≥ 21.1.255 | [neoforged.net](https://neoforged.net/) |
+| **Cinematic Interactions** (NeoForge) | ≥ 0.18.30 | [dcvke/CinematicInteractions](https://github.com/dcvke/CinematicInteractions) |
+| **TaCZ 1.21.1 NeoForge Port** (unofficial, by MUKSC) | 1.1.8 | [Modrinth](https://modrinth.com/mod/tacz-1.21.1) |
+
+**Forge** (1.20.1)
+
+| Mod | Version | Link |
+|---|---|---|
+| Forge | ≥ 47.4.10 | [minecraftforge.net](https://files.minecraftforge.net/) |
+| **Cinematic Interactions** (Forge) | ≥ 0.18.30 | [dcvke/CinematicInteractions](https://github.com/dcvke/CinematicInteractions) |
+| **TaCZ** (Timeless and Classics Zero) | 1.1.8 | [Modrinth](https://modrinth.com/mod/timeless-and-classics-zero) |
+
+The settings are in the mods list's **Config** button on NeoForge and Forge (`config/cinematic_tacz-client.toml`).
 
 ## ✅ Tested versions
 
@@ -77,6 +101,9 @@ Every combination tested in game, with exact versions and what was checked, live
 | Minecraft | Loader | Status | Details |
 |---|---|---|---|
 | 1.21.1 | Fabric | ✅ Works | [fabric-1.21.1.md](docs/compatibility/fabric-1.21.1.md) |
+| 1.20.1 | Fabric | ✅ Works | |
+| 1.21.1 | NeoForge | ✅ Works | |
+| 1.20.1 | Forge | ✅ Works | |
 
 The add-on only loads with **TACZ 0.7.1 or later within 0.7.x** (`>=0.7.1-alpha <0.8.0-alpha` in `fabric.mod.json`;
 the `-alpha` is needed because Fabric reads `0.7.1-forge1.1.8-hotfix2` as a pre-release of 0.7.1). With any other
@@ -90,16 +117,19 @@ may need adjustments.
 
 ## 🛠️ Building
 
-Java 21. The Cinematic Interactions JAR is not on any Maven repository: build it and copy it to `libs/`.
+Java 21 (the 1.20.1 JAR is compiled for Java 17). One codebase builds every version with
+[Stonecutter](https://stonecutter.kikugie.dev/): a node per Minecraft version and loader, `1.21.1-fabric` and
+`1.20.1-fabric`, `1.21.1-neoforge`, `1.20.1-forge`. The Cinematic Interactions JARs are not on any Maven repository: build its targets (it needs a JDK 17
+for 1.20.1) and copy them to `libs/`.
 
 ```sh
-(cd ../CinematicInteractions/fabric/1.21.1 && sh gradlew remapJar)
-cp "../CinematicInteractions/fabric/1.21.1/build/libs/Cinematic Interaction-Fabric-1.21.1-0.18.25.jar" libs/cinematic-fabric-1.21.1-0.18.25.jar
-./gradlew build        # JAR in versions/1.21.1/build/libs/
-./gradlew runClient    # test game with TACZ and Cinematic Interactions
+(cd ../CinematicInteractions && ./gradlew :1.20.1-fabric:build :1.21.1-fabric:build :1.21.1-neoforge:build :1.20.1-forge:build -x test)
+cp ../CinematicInteractions/versions/1.2*/build/libs/*-0.18.30.jar libs/
+./gradlew build                       # a JAR per node in versions/<node>/build/libs/
+./gradlew :1.21.1-fabric:runClient    # test game with TACZ and Cinematic Interactions
 ```
 
-`runClient` and `runServer` copy TaCZ Refabricated and Forge Config API Port into `run/<side>/mods`, as a normal
+`runClient` and `runServer` copy TaCZ Refabricated and Forge Config API Port into `run/<node>/<side>/mods`, as a normal
 install would, because they carry nested libraries the dev classpath doesn't load.
 
 ## 🔧 Technical notes

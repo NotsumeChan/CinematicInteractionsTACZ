@@ -606,7 +606,7 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
         // view; the grip back to the player; in on each hole, over to the next between them
         double push = 0, half = 0.15;
         for (double hole : HOLES) push = Math.max(push, Math.max(0, Math.sin(Math.PI * ((t - hole) / (2 * half) + 0.5))));
-        double k = ease(Math.clamp((t - HOLES[0] - half) / (HOLES[1] - HOLES[0] - 2 * half), 0, 1));
+        double k = ease(Mth.clamp((t - HOLES[0] - half) / (HOLES[1] - HOLES[0] - 2 * half), 0, 1));
         Vec3 tip = hole(k).add(0, 0.05 - 0.045 * push, 0);
         Vec3 bit = UP.scale(-DRILL_TILT[0]).add(side().scale(-DRILL_TILT[1])).add(right().scale(-DRILL_TILT[2]));
         Quaternionf turn = turn(drillRest.axis(), drillRest.across(), bit, side());
@@ -703,7 +703,7 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
 
     @Override
     public void scroll(double delta) {
-        page = Math.clamp(page + (delta < 0 ? 1 : -1), 0, pages() - 1);
+        page = Mth.clamp(page + (delta < 0 ? 1 : -1), 0, pages() - 1);
     }
 
     private void sound(SoundEvent event, float volume, float pitch) {

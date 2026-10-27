@@ -2,4 +2,19 @@ plugins {
     id 'dev.kikugie.stonecutter'
 }
 
-stonecutter.active '1.21.1'
+stonecutter.active '1.21.1-fabric'
+
+stonecutter.parameters {
+    // loader constants for the comments: //? if fabric {, //? if !forge { ...
+    constants.match(it.current.project.split('-', 2)[1], 'fabric', 'neoforge', 'forge')
+    // renames between game versions, applied to every source file both ways (src/ is written for 1.21)
+    replacements.string(it.current.parsed >= '1.21') {
+        replace('new ResourceLocation(', 'ResourceLocation.fromNamespaceAndPath(')
+        replace('ItemStack.isSameItemSameTags(', 'ItemStack.isSameItemSameComponents(')
+        replace('SoundEvents.ARMOR_EQUIP_IRON,', 'SoundEvents.ARMOR_EQUIP_IRON.value(),')
+    }
+    // TACZ on NeoForge and Forge registers its recipe type through a deferred holder
+    replacements.string(!it.current.project.endsWith('-fabric')) {
+        replace('ModRecipe.GUN_SMITH_TABLE_CRAFTING)', 'ModRecipe.GUN_SMITH_TABLE_CRAFTING.get())')
+    }
+}

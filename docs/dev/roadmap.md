@@ -39,13 +39,31 @@ version the owner tested and gave feedback on.
    `modLocalRuntime` in the dev runs). Options: scene per table (`AddonScenesMixin` on `AddonScenes.available`; off,
    Cinematic Interactions opens TACZ's window), crafting animations (off: crafted at once), draw + inspect after forging
    (off: the forge scene stays open, which settles that "decision pending" per player), particles.
-7. **More versions: every target Cinematic Interactions has.** It now builds four from shared sources with Stonecutter
-   (`settings.gradle.kts`: 1.20.1 Forge and Fabric, 1.21.1 NeoForge and Fabric, `vcsVersion` 1.21.1-neoforge; its
-   `fabric/1.21.1` tree, which our JAR and the release workflow build from, is the old one). For each node: a TACZ for
-   that loader and version (original TACZ is Forge 1.20.1, TaCZ Refabricated Fabric 1.21.1; check what exists for the
-   other two), Cinematic Interactions' JAR of that target, a Loom variant per loader (`loom-back-compat`, as it does),
-   `//?` conditions where Minecraft or TACZ differ, the settings file in a `.toml` where Forge/NeoForge have a config
-   spec, and a JAR per target in the release workflow.
+7. **More versions: every target Cinematic Interactions has.** Done, the four nodes tested in game (it builds four from shared sources with Stonecutter:
+   1.20.1 Forge and Fabric, 1.21.1 NeoForge and Fabric). Every one has a TACZ: Forge 1.20.1 the original TACZ
+   1.1.8-hotfix2 (Modrinth `timeless-and-classics-zero`, `AzCBJlex`), Fabric 1.20.1 TaCZ Refabricated
+   1.20.1-0.7.1 (`3ShZi2cZ`, branch `1.20.1` of its repo), NeoForge 1.21.1 an unofficial port by MUKSC 1.1.8-hotfix-r7
+   (`tacz-1.21.1`, `62q6mB5Q`, github.com/MUKSC/TACZ-1.21.1), Fabric 1.21.1 the current one.
+   - **Fabric 1.20.1**: done, tested in game. Nodes renamed `<mc>-<loader>` like Cinematic Interactions'
+     targets, per-node `versions/<node>/gradle.properties`, Loom 1.17.21 (Cinematic Interactions' JARs need it), both
+     nodes on its 0.18.30 JARs from main (the `fabric/1.21.1` tree is gone from our build). Differences: recipe holders
+     (`Tacz.tabs`), `Screen` background before 1.20.2, three renames in `stonecutter.gradle`, `Mth.clamp` (Java 17).
+   - **NeoForge 1.21.1**: done, tested in game. `build.neoforge.gradle` (ModDevGradle 2.0.148, NeoForge
+     21.1.255, as Cinematic Interactions), `src/neoforge/templates/META-INF/neoforge.mods.toml`, its own mixin list
+     without `KeyMappingMixin` (NeoForge already gives one button to several mappings). Loader code behind `//?`:
+     the `@Mod` constructor (`CinematicTacz`, which starts `CinematicTaczClient.init` on the client), the craft packet
+     (`PacketDistributor.sendToServer`), the settings as a config spec (`config/cinematic_tacz-client.toml`, the same
+     options with comments, the mods list's Config button opening `SettingsScreen`), the client tick event. MUKSC's port
+     keeps every TACZ class and method this add-on uses; only its recipe type is a deferred holder (a rename in
+     `stonecutter.gradle`).
+   - **Forge 1.20.1**: done, tested in game. `build.forge.gradle` (ModDevGradle's legacy Forge plugin
+     2.0.148, Forge 47.4.10, Java 17, a mixin refmap and the `MixinConfigs` manifest attribute, as Cinematic
+     Interactions), `src/forge/templates/META-INF/mods.toml`, `pack.mcmeta`, its own mixin list. Loader code: the `@Mod`
+     constructor, `ForgeConfigSpec` settings with the Config button (`ConfigScreenHandler`), the client tick event,
+     TACZ's `NetworkHandler` for the craft packet. `ServerPlayerMixin` opens a table's menu with
+     `NetworkHooks.openScreen` and its type (TACZ's client menu factory reads it unconditionally; Cinematic Interactions
+     opens menus with a plain `openMenu`). The renderer hook is not remapped (`remap = false`): TACZ's SRG JAR keeps
+     `render`, only its bridge is `m_6922_`. Forge loads TACZ's jar-in-jar libraries itself, in the dev runs too.
 
 ## Requests for Cinematic Interactions' owner
 
@@ -53,6 +71,8 @@ version the owner tested and gave feedback on.
   so `SceneScreen` stops checking `instanceof TableStation`). Then the scene could use the real recipe book.
 - A per-scene switch in the add-on API (an add-on's scene turned off by the player, so the block keeps its window);
   `AddonScenesMixin` does it for now.
+- On NeoForge (and Forge), open an add-on station's menu the way the block does, with its extra data (or let the
+  definition write it); `GunSmithTableMenuDataMixin` does it for TACZ for now.
 - Optional: multi-block stations (a definition mapping several blocks to one root), making the "own table" aim
   workaround unnecessary.
 

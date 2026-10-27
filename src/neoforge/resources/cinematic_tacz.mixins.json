@@ -1,0 +1,19 @@
+{
+  "required": true,
+  "package": "dev.notsume.cinematictacz.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "GunSmithTableBlockEntityMixin",
+    "GunSmithTableMenuDataMixin"
+  ],
+  "client": [
+    "AddonScenesMixin",
+    "HandsAccessor",
+    "LanguageManagerMixin",
+    "MinecraftMixin",
+    "TaczTableRendererMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

@@ -4,7 +4,7 @@ Context for working on this repository with Claude Code (or any assistant). Read
 
 ## What this is
 
-**Cinematic Interactions: TACZ Addon** (`cinematic_tacz`): a Fabric 1.21.1 add-on that gives TACZ's gun smith tables
+**Cinematic Interactions: TACZ Addon** (`cinematic_tacz`): a Fabric 1.21.1 / 1.20.1, NeoForge 1.21.1 and Forge 1.20.1 add-on that gives TACZ's gun smith tables
 first-person scenes through Cinematic Interactions' add-on API. Vibecoded with Claude Code; tested in game by the owner.
 
 Sibling folders (same parent directory, `minecraft/`):
@@ -30,18 +30,29 @@ Sibling folders (same parent directory, `minecraft/`):
 
 ```sh
 export JAVA_HOME=$PWD/../.jdk/current           # fish: set -x JAVA_HOME $PWD/../.jdk/current
-./gradlew build                                  # versions/1.21.1/build/libs/CinematicInteractions-TACZ-Fabric-1.21.1-0.1.0.jar
-./gradlew runClient                              # dev game: run/client
-./gradlew runServer                              # dev server: run/server (EULA accepted by the owner)
+./gradlew build                                  # every node: versions/<node>/build/libs/CinematicInteractions-TACZ-<Loader>-<mc>-0.1.0.jar
+./gradlew :1.21.1-fabric:runClient               # dev game of a node: run/<node>/client
+./gradlew :1.21.1-fabric:runServer               # dev server: run/<node>/server (EULA accepted by the owner)
 ```
 
-- `libs/cinematic-fabric-1.21.1-0.18.25.jar` comes from `../CinematicInteractions/fabric/1.21.1` (`sh gradlew remapJar`;
-  it needs `test-mods/polymorph/polymorph-fabric-1.1.0+1.21.1.jar`, downloaded from Modrinth, git-ignored there).
-- In-game checks: the owner presses **F2** (screenshots in `run/client/screenshots/`) and the log is
-  `run/client/logs/latest.log`. Lines `[Cinematic] ADDON at …: no scene (…)` explain why a scene fell back.
-- Stonecutter (`settings.gradle`, `stonecutter.gradle`): `build.gradle` builds each node in `versions/<node>/`; only
-  `1.21.1` (Fabric) so far, which is also the version in `src/` (`vcsVersion`). Code that differs per node goes behind
-  `//?` comments. The dev games stay in `run/client` and `run/server`.
+- `libs/Cinematic Interaction-…-0.18.30.jar`, one per node (`cinematic_jar` in `versions/<node>/gradle.properties`),
+  come from `../CinematicInteractions` main: `./gradlew :1.20.1-fabric:build :1.21.1-fabric:build :1.21.1-neoforge:build :1.20.1-forge:build -x test
+  -Porg.gradle.java.installations.paths=<../.jdk/jdk-17…>,<../.jdk/jdk-21…> -Porg.gradle.java.installations.auto-download=false`
+  (its 1.20.1 targets need a JDK 17: `../.jdk/jdk-17.0.21+9`, next to the 21). Our 1.20.1 node compiles with 21 at release 17.
+- In-game checks: the owner presses **F2** (screenshots in `run/<node>/client/screenshots/`) and the log is
+  `run/<node>/client/logs/latest.log`. Lines `[Cinematic] ADDON at …: no scene (…)` explain why a scene fell back.
+- Stonecutter (`settings.gradle`, `stonecutter.gradle`): nodes `<mc>-<loader>` as Cinematic Interactions' targets,
+  `1.21.1-fabric` (the code in `src/`, `vcsVersion`), `1.20.1-fabric`, `1.21.1-neoforge` and `1.20.1-forge`.
+  `build.<loader>.gradle` (Loom for Fabric, ModDevGradle for NeoForge, its legacy plugin for Forge) builds each in `versions/<node>/` with that folder's `gradle.properties`
+  (Java, Parchment, loader/API versions, host JARs). Loader files live in `src/<loader>/resources` (`fabric.mod.json`,
+  each loader's `cinematic_tacz.mixins.json`) and `src/<neoforge|forge>/templates` (`neoforge.mods.toml`, `mods.toml`); loader-only
+  classes (`KeyMappingMixin`, `ModMenuIntegration`; `GunSmithTableMenuDataMixin`; `ServerPlayerMixin`) are wrapped
+  whole in `//? if <loader> {`.
+- The Forge node runs on Java 17: pass `-Porg.gradle.java.installations.paths=$PWD/../.jdk/jdk-17.0.21+9` (otherwise
+  the foojay plugin in `settings.gradle` downloads one into `~/.gradle/jdks`). The host JARs are remapped from SRG
+  (`modImplementation`, through a `flatDir` of `libs/`); Forge finds TACZ's jar-in-jar libraries itself, in dev too. Code that differs
+  goes behind `//?` comments (`//? if >=1.21 {`, loader constants `fabric`/`neoforge`/`forge`) or a rename in
+  `stonecutter.gradle`'s `replacements`. Each node has its own dev games, `run/<node>/client|server`.
 - Releases: `.github/workflows/release.yml` builds on push to `nightly` (rolling pre-release `nightly`) and `main`
   (release `v<mod_version>`, skipped if it exists). It builds Cinematic Interactions from the commit pinned there: keep
   it in step with `cinematic_jar`.

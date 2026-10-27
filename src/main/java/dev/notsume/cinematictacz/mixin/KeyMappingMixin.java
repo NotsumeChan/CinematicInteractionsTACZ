@@ -1,3 +1,5 @@
+//? if fabric {
+// Fabric only: Forge and NeoForge already let one button press several key mappings.
 package dev.notsume.cinematictacz.mixin;
 
 import com.mojang.blaze3d.platform.InputConstants;
@@ -63,3 +65,4 @@ abstract class KeyMappingMixin {
         return others;
     }
 }
+//?}

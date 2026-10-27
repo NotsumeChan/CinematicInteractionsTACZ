@@ -18,15 +18,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @Mixin(GunSmithTableRenderer.class)
 abstract class TaczTableRendererMixin {
-    // Loom does not remap this target (another mod's method): the descriptor with dev names and the one a real game sees
+    // Not remapped (another mod's method): the descriptor with dev names and the one a real Fabric game sees
     // (intermediary names; TaCZ Refabricated's jar keeps the method's own name, render) are both listed, and whichever
-    // exists is hooked.
+    // exists is hooked. Forge's TACZ, in SRG names, also keeps render (only its bridge is m_6922_), with Mojang's class
+    // names: the dev descriptor.
     private static final String RENDER = "render(Lcom/tacz/guns/block/entity/GunSmithTableBlockEntity;"
             + "FLcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/MultiBufferSource;II)V";
     private static final String RENDER_INTERMEDIARY = "render(Lcom/tacz/guns/block/entity/GunSmithTableBlockEntity;"
             + "FLnet/minecraft/class_4587;Lnet/minecraft/class_4597;II)V";
 
-    @Inject(method = {RENDER, RENDER_INTERMEDIARY}, at = @At("HEAD"), require = 0)
+    @Inject(method = {RENDER, RENDER_INTERMEDIARY}, at = @At("HEAD"), require = 0, remap = false)
     private void cinematicTacz$pressDown(GunSmithTableBlockEntity table, float partialTick, PoseStack pose,
                                          MultiBufferSource buffers, int light, int overlay, CallbackInfo ci) {
         float stroke = CraftFx.pressStroke(table.getBlockPos()), plate = CraftFx.plateDrop(table.getBlockPos());
@@ -36,7 +37,7 @@ abstract class TaczTableRendererMixin {
         if (held != null) TaczClient.hide(table, held, true);
     }
 
-    @Inject(method = {RENDER, RENDER_INTERMEDIARY}, at = @At("TAIL"), require = 0)
+    @Inject(method = {RENDER, RENDER_INTERMEDIARY}, at = @At("TAIL"), require = 0, remap = false)
     private void cinematicTacz$pressBack(GunSmithTableBlockEntity table, float partialTick, PoseStack pose,
                                          MultiBufferSource buffers, int light, int overlay, CallbackInfo ci) {
         if (CraftFx.pressStroke(table.getBlockPos()) != 0) TaczClient.press(table, 0);

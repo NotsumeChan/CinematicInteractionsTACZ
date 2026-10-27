@@ -1,0 +1,73 @@
+// The NeoForge nodes, with ModDevGradle as Cinematic Interactions builds its own (build.neoforge.gradle.kts there).
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.148'
+}
+
+def mcVersion = stonecutter.current.version
+def javaVersion = java_version as int
+
+version = mod_version
+group = 'dev.notsume.cinematictacz'
+base.archivesName = "CinematicInteractions-TACZ-NeoForge-${mcVersion}"
+
+repositories {
+    maven { url = 'https://api.modrinth.com/maven'; content { includeGroup 'maven.modrinth' } }
+}
+
+configurations {
+    hostMods { transitive = false }
+}
+
+neoForge {
+    version = neoforge_version
+    parchment {
+        mappingsVersion = parchment_mappings_version
+        minecraftVersion = mcVersion
+    }
+    runs {
+        // one game folder per node, as the Fabric ones
+        client { client(); gameDirectory = rootProject.file("run/${stonecutter.current.project}/client") }
+        server { server(); gameDirectory = rootProject.file("run/${stonecutter.current.project}/server"); programArgument '--nogui' }
+    }
+    mods {
+        cinematic_tacz { sourceSet sourceSets.main }
+    }
+}
+
+dependencies {
+    // Never bundled: players install the hosts themselves. NeoForge runs on Mojang's names, so their JARs are used as they are.
+    compileOnly files(rootProject.file("libs/${cinematic_jar}"))
+    compileOnly "maven.modrinth:tacz-1.21.1:${tacz_version}"
+    hostMods "maven.modrinth:tacz-1.21.1:${tacz_version}"
+}
+
+// As on Fabric, the hosts carry nested libraries (TACZ's LuaJ ...) a dev classpath does not unpack: the dev runs load
+// their real JARs from mods/, as a player's game does.
+['client', 'server'].each { side ->
+    def copyHosts = tasks.register("${side}HostMods", Copy) {
+        from configurations.hostMods
+        from rootProject.file("libs/${cinematic_jar}")
+        into rootProject.file("run/${stonecutter.current.project}/${side}/mods")
+    }
+    tasks.matching { it.name == "run${side.capitalize()}" }.configureEach { dependsOn copyHosts }
+}
+
+def generateModMetadata = tasks.register('generateModMetadata', ProcessResources) {
+    def props = [version: version, minecraft: mcVersion, neoforge: neoforge_version, tacz: tacz_range]
+    inputs.properties props
+    expand props
+    from rootProject.file('src/neoforge/templates')
+    into layout.buildDirectory.dir('generated/sources/modMetadata')
+}
+sourceSets.main.resources {
+    srcDir rootProject.file('src/neoforge/resources')
+    srcDir generateModMetadata
+}
+neoForge.ideSyncTask generateModMetadata
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(javaVersion)
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = javaVersion
+}

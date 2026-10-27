@@ -1,0 +1,78 @@
+// The Forge nodes (1.20.1), with ModDevGradle's legacy Forge plugin as Cinematic Interactions builds its own
+// (build.forge.gradle.kts there): Parchment names in development, SRG names and a mixin refmap in the JAR.
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev.legacyforge' version '2.0.148'
+}
+
+def mcVersion = stonecutter.current.version
+def javaVersion = java_version as int
+
+version = mod_version
+group = 'dev.notsume.cinematictacz'
+base.archivesName = "CinematicInteractions-TACZ-Forge-${mcVersion}"
+
+// The Cinematic Interactions JAR in libs/ is resolved as a module of a local folder repository: the remapping
+// configurations take modules only.
+repositories {
+    maven { url = 'https://api.modrinth.com/maven'; content { includeGroup 'maven.modrinth' } }
+    flatDir { dirs rootProject.file('libs'); content { includeGroup 'local' } }
+}
+/** A local JAR "<name>-<version>.jar" as a module of the folder repository. */
+def local = { String jar ->
+    def m = (jar - '.jar') =~ /^(.+?)-(\d.*)$/
+    "local:${m[0][1]}:${m[0][2]}"
+}
+
+legacyForge {
+    version = "${mcVersion}-${forge_version}"
+    parchment {
+        mappingsVersion = parchment_mappings_version
+        minecraftVersion = mcVersion
+    }
+    runs {
+        // one game folder per node, as the other loaders
+        client { client(); gameDirectory = rootProject.file("run/${stonecutter.current.project}/client") }
+        server { server(); gameDirectory = rootProject.file("run/${stonecutter.current.project}/server"); programArgument '--nogui' }
+    }
+    mods {
+        cinematic_tacz { sourceSet sourceSets.main }
+    }
+}
+
+mixin {
+    add sourceSets.main, 'cinematic_tacz.refmap.json'
+    config 'cinematic_tacz.mixins.json'
+}
+
+// Forge 1.20.1 finds a mod's mixins only through this manifest attribute (MDG passes the config to its own runs alone)
+tasks.named('jar') {
+    manifest.attributes('MixinConfigs': 'cinematic_tacz.mixins.json')
+}
+
+dependencies {
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    // Never bundled: players install the hosts themselves. Their JARs are in SRG names, remapped for development.
+    modImplementation local(cinematic_jar)
+    modImplementation "maven.modrinth:timeless-and-classics-zero:${tacz_version}"
+    // TACZ's own libraries (jar-in-jar: LuaJ, MixinExtras ...) are found inside its JAR by Forge, in development too
+}
+
+def generateModMetadata = tasks.register('generateModMetadata', ProcessResources) {
+    def props = [version: version, minecraft: mcVersion, forge: forge_version, tacz: tacz_range]
+    inputs.properties props
+    expand props
+    from rootProject.file('src/forge/templates')
+    into layout.buildDirectory.dir('generated/sources/modMetadata')
+}
+sourceSets.main.resources {
+    srcDir rootProject.file('src/forge/resources')
+    srcDir generateModMetadata
+}
+legacyForge.ideSyncTask generateModMetadata
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(javaVersion)
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = javaVersion
+}

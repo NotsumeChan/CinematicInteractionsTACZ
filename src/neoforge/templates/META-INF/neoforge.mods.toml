@@ -1,0 +1,43 @@
+modLoader="javafml"
+loaderVersion="[1,)"
+license="MIT"
+
+[[mods]]
+modId="cinematic_tacz"
+version="${version}"
+displayName="Cinematic Interactions: TACZ Addon"
+authors="NotsumeChan"
+description='''
+First-person Cinematic Interactions scenes for the TACZ gun smith tables.
+'''
+
+[[mixins]]
+config="cinematic_tacz.mixins.json"
+
+[[dependencies.cinematic_tacz]]
+    modId="neoforge"
+    type="required"
+    versionRange="[${neoforge},)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.cinematic_tacz]]
+    modId="minecraft"
+    type="required"
+    versionRange="[${minecraft}]"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.cinematic_tacz]]
+    modId="cinematic"
+    type="required"
+    versionRange="[0.18.30,)"
+    ordering="AFTER"
+    side="BOTH"
+
+[[dependencies.cinematic_tacz]]
+    modId="tacz"
+    type="required"
+    versionRange="${tacz}"
+    ordering="AFTER"
+    side="BOTH"

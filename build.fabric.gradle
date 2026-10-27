@@ -1,10 +1,14 @@
+// The Fabric nodes, with Loom.
 plugins {
-    id 'fabric-loom' version '1.16.3'
+    id 'fabric-loom' version '1.17.21'
 }
+
+def mcVersion = stonecutter.current.version
+def javaVersion = java_version as int
 
 version = mod_version
 group = 'dev.notsume.cinematictacz'
-base.archivesName = 'CinematicInteractions-TACZ-Fabric-1.21.1'
+base.archivesName = "CinematicInteractions-TACZ-Fabric-${mcVersion}"
 
 repositories {
     maven { url = 'https://maven.parchmentmc.org/' }
@@ -17,11 +21,11 @@ configurations {
 }
 
 dependencies {
-    minecraft "com.mojang:minecraft:${minecraft_version}"
+    minecraft "com.mojang:minecraft:${mcVersion}"
     // Mojang names with Parchment parameters, as Cinematic Interactions uses (TACZ's own Yarn names are remapped by Loom).
     mappings loom.layered {
         officialMojangMappings()
-        parchment("org.parchmentmc.data:parchment-${minecraft_version}:${parchment_mappings_version}@zip")
+        parchment("org.parchmentmc.data:parchment-${mcVersion}:${parchment_mappings_version}@zip")
     }
     modImplementation "net.fabricmc:fabric-loader:${loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
@@ -40,8 +44,8 @@ dependencies {
 loom {
     runs {
         // one game folder for every node (runDir is relative to versions/<node>/)
-        client { client(); runDir '../../run/client' }
-        server { server(); runDir '../../run/server'; programArg '--nogui' }
+        client { client(); runDir "../../run/${stonecutter.current.project}/client" }
+        server { server(); runDir "../../run/${stonecutter.current.project}/server"; programArg '--nogui' }
     }
 }
 
@@ -50,19 +54,22 @@ loom {
 ['client', 'server'].each { side ->
     def copyHosts = tasks.register("${side}HostMods", Copy) {
         from configurations.hostMods
-        into rootProject.file("run/${side}/mods")
+        into rootProject.file("run/${stonecutter.current.project}/${side}/mods")
     }
     tasks.matching { it.name == "run${side.capitalize()}" }.configureEach { dependsOn copyHosts }
 }
 
+sourceSets.main.resources.srcDir rootProject.file('src/fabric/resources')
+
 processResources {
-    inputs.property 'version', version
+    def props = [version: version, minecraft: mcVersion, java: javaVersion]
+    inputs.properties props
     filesMatching('fabric.mod.json') {
-        expand version: version
+        expand props
     }
 }
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
-    options.release = 21
+    options.release = javaVersion
 }

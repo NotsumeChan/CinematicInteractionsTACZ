@@ -1,4 +1,4 @@
-# Builds the add-on on nightly and main and publishes the JAR:
+# Builds the add-on (every Stonecutter node) on nightly and main and publishes the JARs:
 # - nightly: a rolling pre-release under the tag "nightly", replaced on every push
 # - main: a release "v<mod_version>" (gradle.properties); skipped when that version is already released
 name: Release
@@ -16,12 +16,12 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Cinematic Interactions is not on any maven: its Fabric 1.21.1 JAR is built from this commit.
-  # Keep it in step with cinematic_jar in gradle.properties.
+  # Cinematic Interactions is not on any maven: its JARs (one per target, the ones our nodes use) are built from this
+  # commit. Keep it in step with cinematic_jar in versions/<node>/gradle.properties.
   CINEMATIC_REPO: dcvke/CinematicInteractions
-  CINEMATIC_COMMIT: 8a6d9c0
-  # Its build needs Polymorph's API (git-ignored in its repo): Polymorph 1.1.0+1.21.1 from Modrinth.
-  POLYMORPH_URL: https://cdn.modrinth.com/data/tagwiZkJ/versions/Ng5Y6KVo/polymorph-fabric-1.1.0%2B1.21.1.jar
+  CINEMATIC_COMMIT: bb1bca1
+  # Its targets our nodes build against
+  CINEMATIC_TARGETS: 1.20.1-fabric 1.21.1-fabric 1.21.1-neoforge 1.20.1-forge
 
 jobs:
   build:
@@ -32,7 +32,10 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 21
+          # 1.20.1 targets build with 17 (Cinematic Interactions' toolchain), the rest and Gradle itself with 21
+          java-version: |
+            17
+            21
 
       # this repo does not track the Gradle wrapper
       - uses: gradle/actions/setup-gradle@v4
@@ -44,13 +47,12 @@ jobs:
           git clone --filter=blob:none "https://github.com/$CINEMATIC_REPO.git" "$RUNNER_TEMP/cinematic"
           cd "$RUNNER_TEMP/cinematic"
           git checkout "$CINEMATIC_COMMIT"
-          cd fabric/1.21.1
-          mkdir -p test-mods/polymorph
-          curl -fsSL -o test-mods/polymorph/polymorph-fabric-1.1.0+1.21.1.jar "$POLYMORPH_URL"
-          sh gradlew remapJar --no-daemon
-          jar=$(grep '^cinematic_jar=' "$GITHUB_WORKSPACE/gradle.properties" | cut -d= -f2)
+          sh gradlew $(for t in $CINEMATIC_TARGETS; do echo ":$t:build"; done) -x test --no-daemon
           mkdir -p "$GITHUB_WORKSPACE/libs"
-          cp build/libs/*-Fabric-1.21.1-*.jar "$GITHUB_WORKSPACE/libs/$jar"
+          for t in $CINEMATIC_TARGETS; do
+            jar=$(grep '^cinematic_jar=' "$GITHUB_WORKSPACE/versions/$t/gradle.properties" | cut -d= -f2)
+            cp "versions/$t/build/libs/$jar" "$GITHUB_WORKSPACE/libs/"
+          done
 
       - name: Build add-on
         run: gradle build --no-daemon

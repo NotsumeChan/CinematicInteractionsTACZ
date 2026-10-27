@@ -13,7 +13,13 @@ import com.tacz.guns.client.model.bedrock.BedrockCube;
 import com.tacz.guns.client.model.bedrock.BedrockModel;
 import com.tacz.guns.client.model.bedrock.BedrockPart;
 import com.tacz.guns.network.message.ClientMessageCraft;
+//? if fabric {
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+//?} else if neoforge {
+/*import net.neoforged.neoforge.network.PacketDistributor;
+*///?} else if forge {
+/*import com.tacz.guns.network.NetworkHandler;
+*///?}
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -51,7 +57,13 @@ public final class TaczClient {
 
     /** Asks the server to craft {@code recipe} in the open table menu {@code menuId}, as TACZ's own Craft button does. */
     public static void craft(ResourceLocation recipe, int menuId) {
+        //? if fabric {
         ClientPlayNetworking.send(new ClientMessageCraft(recipe, menuId));
+        //?} else if neoforge {
+        /*PacketDistributor.sendToServer(new ClientMessageCraft(recipe, menuId));
+        *///?} else if forge {
+        /*NetworkHandler.CHANNEL.sendToServer(new ClientMessageCraft(recipe, menuId));
+        *///?}
     }
 
     public static boolean isTableWindow(@Nullable Screen screen) {

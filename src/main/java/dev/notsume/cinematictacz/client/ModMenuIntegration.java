@@ -1,3 +1,5 @@
+//? if fabric {
+// Fabric only: Mod Menu is Fabric's; NeoForge has its mods list's Config button.
 package dev.notsume.cinematictacz.client;
 
 import com.terraformersmc.modmenu.api.ConfigScreenFactory;
@@ -10,3 +12,4 @@ public final class ModMenuIntegration implements ModMenuApi {
         return SettingsScreen::new;
     }
 }
+//?}

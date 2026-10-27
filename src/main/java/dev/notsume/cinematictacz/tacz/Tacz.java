@@ -21,7 +21,9 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
+//? if >=1.21 {
 import net.minecraft.world.item.crafting.RecipeHolder;
+//?}
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BlockStateProperties;
@@ -29,6 +31,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -105,13 +108,20 @@ public final class Tacz {
         Optional<CommonBlockIndex> index = type == null ? Optional.empty() : TimelessAPI.getCommonBlockIndex(type);
         List<TabConfig> configs = everything ? TabConfig.DEFAULT_TABS : index.map(i -> i.getData().getTabs()).orElse(List.of());
         RecipeFilter filter = everything ? null : index.map(CommonBlockIndex::getFilter).orElse(null);
-        List<RecipeHolder<GunSmithTableRecipe>> all = level.getRecipeManager().getAllRecipesFor(ModRecipe.GUN_SMITH_TABLE_CRAFTING);
+        // each recipe with its id (1.21 hands them in holders, 1.20.1 knows its own)
+        //? if >=1.21 {
+        List<Map.Entry<ResourceLocation, GunSmithTableRecipe>> all = level.getRecipeManager().getAllRecipesFor(ModRecipe.GUN_SMITH_TABLE_CRAFTING)
+                .stream().map(holder -> Map.entry(holder.id(), holder.value())).toList();
+        //?} else {
+        /*List<Map.Entry<ResourceLocation, GunSmithTableRecipe>> all = level.getRecipeManager().getAllRecipesFor(ModRecipe.GUN_SMITH_TABLE_CRAFTING)
+                .stream().map(recipe -> Map.entry(recipe.getId(), recipe)).toList();
+        *///?}
         List<Tab> tabs = new ArrayList<>();
         for (TabConfig config : configs) {
             List<Recipe> recipes = all.stream()
-                    .filter(holder -> config.id().equals(holder.value().getTab()))
-                    .filter(holder -> filter == null || filter.contains(holder.id()))
-                    .map(holder -> new Recipe(holder.id(), holder.value().getOutput(), inputs(holder.value())))
+                    .filter(entry -> config.id().equals(entry.getValue().getTab()))
+                    .filter(entry -> filter == null || filter.contains(entry.getKey()))
+                    .map(entry -> new Recipe(entry.getKey(), entry.getValue().getOutput(), inputs(entry.getValue())))
                     .toList();
             if (!recipes.isEmpty()) {
                 tabs.add(new Tab(config.id(), Component.translatable(config.name()), recipes));
