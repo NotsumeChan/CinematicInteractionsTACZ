@@ -2,128 +2,126 @@
 
 # 🎬🔫 Cinematic Interactions: TACZ Addon
 
-**Las mesas de armas de TACZ, en primera persona y al estilo de Cinematic Interactions.**
+**TACZ's gun smith tables in first person, the Cinematic Interactions way.**
 
 ![Minecraft](https://img.shields.io/badge/Minecraft-1.21.1-62B47A?style=flat-square)
 ![Loader](https://img.shields.io/badge/Loader-Fabric-DBD0B4?style=flat-square)
-![Estado](https://img.shields.io/badge/estado-dev-orange?style=flat-square)
+![Status](https://img.shields.io/badge/status-dev-orange?style=flat-square)
 ![Vibecoded](https://img.shields.io/badge/vibecoded-🤖%20Claude%20Code-8A63D2?style=flat-square)
 
 </div>
 
 ---
 
-Un addon que une dos mods: en vez de abrir la ventana de TACZ, te acercas a la mesa, la cámara se inclina sobre ella y
-las armas, la munición y los accesorios están ahí, sobre el tablero. Eliges una pieza, la vuelves a tocar y la ves
-armarse con sus materiales.
+An add-on that bridges two mods: instead of opening TACZ's window, you step up to the table, the camera leans over it,
+and the guns, ammo and attachments lie right there on the bench. Pick a part, touch it again, and watch it come
+together from its materials.
 
 > [!IMPORTANT]
-> **Este addon no es oficial** y no está afiliado a los autores de Cinematic Interactions ni de TACZ. Solo conecta
-> ambos mods: **las ideas, el diseño y el mérito de cada mod pertenecen a sus autores** (ver [Créditos](#-créditos)).
+> **This add-on is unofficial** and not affiliated with the authors of Cinematic Interactions or TACZ. It only connects
+> the two: **the ideas, design and credit of each mod belong to their authors** (see [Credits](#-credits)).
 
 > [!NOTE]
-> **Proyecto vibecodeado.** El código fue escrito con asistencia de IA ([Claude Code](https://claude.com/claude-code))
-> y probado en el juego por [NotsumeChan](https://github.com/NotsumeChan). Revisa y prueba antes de usarlo en un
-> servidor o modpack serio.
+> **Vibecoded project.** The code was written with AI assistance ([Claude Code](https://claude.com/claude-code)) and
+> tested in game by [NotsumeChan](https://github.com/NotsumeChan). Review and test it before using it on a server or in
+> a serious modpack.
 
-## ✨ Qué hace
+## ✨ What it does
 
-| Mesa | Escena |
+| Table | Scene |
 |---|---|
-| 🔫 **Mesa de armas** (`gun_smith_table`) | Las armas descansan en diagonal sobre el escritorio, como en un armero; los rifles se ven más pequeños que las pistolas para que quepan |
-| 🧨 **Mesa de munición** (`ammo_workbench`) | La munición sobre el tapete libre; la elegida flota arriba y sus materiales entre tus manos |
-| 🔭 **Mesa de accesorios** (`attachment_workbench`) | Mesa alta: los accesorios cuelgan de su frente, como en un tablero de herramientas |
+| 🔫 **Gun smith table** (`gun_smith_table`) | Guns rest on the desk at a slant, like on a rack; rifles are drawn smaller than pistols so a page fits |
+| 🧨 **Ammo workbench** (`ammo_workbench`) | Ammo on the free mat; the chosen one hovers above, its materials between your hands |
+| 🔭 **Attachment workbench** (`attachment_workbench`) | A tall bench: attachments hang from its front, like a tool board |
 
-- **Las mismas recetas que TACZ**: respeta las pestañas y filtros de cada mesa del gunpack, y el servidor sigue siendo
-  quien valida y entrega el crafteo (se usa el paquete de crafteo del propio TACZ).
-- **Animación de creación**: los materiales se juntan en la pieza y esta aparece con un pequeño golpe.
-- **Contador de materiales** `tengo/necesito` en verde o rojo; las piezas que no puedes fabricar se ven translúcidas.
-- **Solo escena**: la ventana de TACZ no se abre por fuera de la escena (de lejos, agachado o con la tecla de
-  interacción de TACZ); un aviso te pide acercarte.
-- **Disparar y apuntar con los clics de siempre** en Fabric (ver [Notas técnicas](#-notas-técnicas)).
-- **Español para todas las variantes**: si juegas en `es_cl`, `es_mx`, `es_ar`…, lo que no tenga traducción propia
-  usa `es_es` en vez de caer al inglés (TACZ y sus gunpacks solo traen `es_es`).
+- **TACZ's own recipes**: each table's tabs and filters from the gunpack are respected, and the server still validates
+  and hands out every craft (the add-on sends TACZ's own craft packet).
+- **Crafting animation**: the materials gather into the part, which then pops into place.
+- **Material counter** `have/need` in green or red; parts you can't craft yet are see-through.
+- **Scene only**: TACZ's window never opens outside the scene (from afar, sneaking, or with TACZ's interact key); a
+  notice asks you to step closer.
+- **Shoot and aim with the usual mouse buttons** on Fabric (see [Technical notes](#-technical-notes)).
+- **Spanish for every variant**: playing in `es_cl`, `es_mx`, `es_ar`…, anything without its own translation falls back
+  to `es_es` instead of English (TACZ and its gunpacks only ship `es_es`).
 
-### 🎮 Controles en la escena
+### 🎮 Scene controls
 
-| Acción | Control |
+| Action | Control |
 |---|---|
-| Elegir una pieza | Clic izquierdo |
-| Fabricar la elegida | Clic izquierdo otra vez |
-| Siguiente categoría | Clic derecho |
-| Cambiar de página | Rueda del mouse |
-| Salir | Los mismos de Cinematic Interactions (`E`, moverse…) |
+| Choose a part | Left click |
+| Craft the chosen part | Left click again |
+| Next category | Right click |
+| Change page | Mouse wheel |
+| Leave | As in Cinematic Interactions (`E`, walking away…) |
 
-## 📦 Requisitos
+## 📦 Requirements
 
-| Mod | Versión | Enlace |
+| Mod | Version | Link |
 |---|---|---|
 | Minecraft | 1.21.1 | |
 | Fabric Loader | ≥ 0.17.2 | [fabricmc.net](https://fabricmc.net/) |
 | Fabric API | 0.116.x | [Modrinth](https://modrinth.com/mod/fabric-api) |
 | **Cinematic Interactions** (Fabric) | ≥ 0.18.25 | [dcvke/CinematicInteractions](https://github.com/dcvke/CinematicInteractions) |
-| **TaCZ Refabricated** | 0.7.1 | [Modrinth](https://modrinth.com/mod/tacz-refabricated) |
-| Forge Config API Port | v21.1.x (lo pide TACZ) | [Modrinth](https://modrinth.com/mod/forge-config-api-port) |
+| **TaCZ Refabricated** | 0.7.x, from 0.7.1 | [Modrinth](https://modrinth.com/mod/tacz-refabricated) |
+| Forge Config API Port | v21.1.x (required by TACZ) | [Modrinth](https://modrinth.com/mod/forge-config-api-port) |
 
-## ✅ Versiones probadas
+## ✅ Tested versions
 
-Combinación con la que se desarrolló y probó en el juego (27 de octubre de 2026):
+Every combination tested in game, with exact versions and what was checked, lives in
+**[docs/compatibility](docs/compatibility/README.md)**.
 
-| Componente | Versión probada |
-|---|---|
-| Minecraft | 1.21.1 |
-| Fabric Loader / Fabric API | 0.17.2 / 0.116.17+1.21.1 |
-| Cinematic Interactions | 0.18.25 para Fabric 1.21.1, compilado desde [`8a6d9c0`](https://github.com/dcvke/CinematicInteractions/commit/8a6d9c0) |
-| TaCZ Refabricated | `1.21.1-0.7.1-forge1.1.8-hotfix2` (Modrinth) |
-| Forge Config API Port | v21.1.6 |
-| Gunpack | TAC Zero Default Pack 1.1.8 (`tacz_default_gun`) |
+| Minecraft | Loader | Status | Details |
+|---|---|---|---|
+| 1.21.1 | Fabric | ✅ Works | [fabric-1.21.1.md](docs/compatibility/fabric-1.21.1.md) |
 
-Otras versiones de TACZ para Fabric pueden funcionar si conservan las mismas clases (`com.tacz.guns.*`), pero **no
-están probadas**. Todo lo que el addon toma de TACZ está aislado en
-[`tacz/Tacz.java`](src/main/java/dev/notsume/cinematictacz/tacz/Tacz.java) y
-[`tacz/TaczClient.java`](src/main/java/dev/notsume/cinematictacz/tacz/TaczClient.java): un port con otros nombres se
-adapta ahí. Las posiciones de cada mesa están ajustadas a los modelos del gunpack por defecto; otros gunpacks con
-modelos muy distintos pueden necesitar ajustes.
+The add-on only loads with **TACZ 0.7.1 or later within 0.7.x** (`>=0.7.1-alpha <0.8.0-alpha` in `fabric.mod.json`;
+the `-alpha` is needed because Fabric reads `0.7.1-forge1.1.8-hotfix2` as a pre-release of 0.7.1). With any other
+version the game says so at startup instead of failing at the table. Other Fabric versions of TACZ may work if they keep
+the same classes (`com.tacz.guns.*`), but they are **untested**. Everything the add-on takes from TACZ is isolated in
+[`tacz/Tacz.java`](src/main/java/dev/notsume/cinematictacz/tacz/Tacz.java) and
+[`tacz/TaczClient.java`](src/main/java/dev/notsume/cinematictacz/tacz/TaczClient.java), plus the optional
+[`TaczTableRendererMixin`](src/main/java/dev/notsume/cinematictacz/mixin/TaczTableRendererMixin.java) for the ammo
+press: a port with other names is adapted there. Each table's placement is fitted to the default gunpack's models; gunpacks with very different models
+may need adjustments.
 
-## 🛠️ Compilar
+## 🛠️ Building
 
-Java 21. El JAR de Cinematic Interactions no está en ningún repositorio Maven: hay que compilarlo y copiarlo a `libs/`.
+Java 21. The Cinematic Interactions JAR is not on any Maven repository: build it and copy it to `libs/`.
 
 ```sh
 (cd ../CinematicInteractions/fabric/1.21.1 && sh gradlew remapJar)
 cp "../CinematicInteractions/fabric/1.21.1/build/libs/Cinematic Interaction-Fabric-1.21.1-0.18.25.jar" libs/cinematic-fabric-1.21.1-0.18.25.jar
-./gradlew build        # JAR en build/libs/
-./gradlew runClient    # juego de prueba con TACZ y Cinematic Interactions
+./gradlew build        # JAR in build/libs/
+./gradlew runClient    # test game with TACZ and Cinematic Interactions
 ```
 
-`runClient` y `runServer` copian TaCZ Refabricated y Forge Config API Port a `run/<lado>/mods`, como en una
-instalación normal, porque traen librerías internas que el classpath de desarrollo no carga.
+`runClient` and `runServer` copy TaCZ Refabricated and Forge Config API Port into `run/<side>/mods`, as a normal
+install would, because they carry nested libraries the dev classpath doesn't load.
 
-## 🔧 Notas técnicas
+## 🔧 Technical notes
 
-- **Clics de TACZ en Fabric.** TACZ asigna *disparar* y *apuntar* a los mismos botones que *atacar* y *usar*. Forge deja
-  que un botón active varias asignaciones; Fabric (vanilla) solo una, así que con TaCZ Refabricated el arma o la mano se
-  quedaban sin clic. El addon hace que el botón llegue a todas las asignaciones que lo comparten cuando una es de TACZ
+- **TACZ mouse keys on Fabric.** TACZ binds *shoot* and *aim* to the same buttons as *attack* and *use*. Forge lets one
+  button trigger several key mappings; Fabric (vanilla) only one, so with TaCZ Refabricated either the gun or the hand
+  never got the click. The add-on makes the button reach every mapping sharing it when one of them is TACZ's
   ([`KeyMappingMixin`](src/main/java/dev/notsume/cinematictacz/mixin/KeyMappingMixin.java)).
-- **API de addons.** Usa la API pública de Cinematic Interactions (`AddonStations`, `AddonScenes`,
-  `AddonMenuStation`). Como las mesas de TACZ no tienen slots, la escena manda el paquete de crafteo de TACZ en vez de
-  clics de slot.
-- **Mapeo de ambos mods** para desarrollar: [docs/tacz-map.md](docs/tacz-map.md).
+- **Add-on API.** Built on Cinematic Interactions' public add-on API (`AddonStations`, `AddonScenes`,
+  `AddonMenuStation`). TACZ's tables have no slots, so the scene sends TACZ's craft packet instead of slot clicks.
+- **Mapping of both mods** for development: [docs/tacz-map.md](docs/tacz-map.md) (in Spanish).
 
-## 🌿 Ramas
+## 🌿 Branches
 
-`dev` → `qa` → `nightly` → `main`. Todo entra primero a `dev`; `main` recibe versiones probadas.
+`dev` → `qa` → `nightly` → `main`. Everything lands in `dev` first; `main` gets tested releases.
 
-## 🙏 Créditos
+## 🙏 Credits
 
-- **[Cinematic Interactions](https://github.com/dcvke/CinematicInteractions)** por Southware: la idea de las escenas
-  cinemáticas, su cámara, sus manos y la API de addons sobre la que se construye todo esto.
-- **[TACZ — Timeless and Classics Zero](https://github.com/MCModderAnchor/TACZ)** por el TACZ Dev Team: las armas, las
-  mesas, sus modelos y el gunpack por defecto.
-- **[TaCZ Refabricated](https://modrinth.com/mod/tacz-refabricated)** por Sh1roCu: el port de TACZ a Fabric.
+- **[Cinematic Interactions](https://github.com/dcvke/CinematicInteractions)** by Southware: the idea of cinematic
+  scenes, their camera, hands and the add-on API all of this is built on.
+- **[TACZ — Timeless and Classics Zero](https://github.com/MCModderAnchor/TACZ)** by the TACZ Dev Team: the guns, the
+  tables, their models and the default gunpack.
+- **[TaCZ Refabricated](https://modrinth.com/mod/tacz-refabricated)** by Sh1roCu: the Fabric port of TACZ.
 
-Todos los derechos sobre las ideas, el diseño y los recursos de esos mods pertenecen a sus autores.
+All rights to the ideas, design and assets of those mods belong to their authors.
 
-## 📄 Licencia
+## 📄 License
 
-El addon se declara MIT en `fabric.mod.json`. Cinematic Interactions es MIT; TACZ y TaCZ Refabricated son GPL-3.0.
+The add-on declares MIT in `fabric.mod.json`. Cinematic Interactions is MIT; TACZ and TaCZ Refabricated are GPL-3.0.

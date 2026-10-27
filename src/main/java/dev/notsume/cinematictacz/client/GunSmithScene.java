@@ -23,6 +23,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.Mth;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -49,7 +50,15 @@ import java.util.Set;
  */
 public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu> {
     private static final Vec3 UP = new Vec3(0, 1, 0);
-    private static final double CRAFT_LENGTH = 0.9, CRAFT_BEAT = 0.55;
+    /** The forge (gun smith table): the part lands on the desk, three hammer blows, the last one crafts; it rises after. */
+    private static final double[] BLOWS = {0.7, 1.1, 1.5};
+    private static final double FORGE_LENGTH = 2.2, FORGE_LAND = 0.4, HAMMER_FROM = 0.3;
+    /** The press (ammo bench): the materials go in, two strokes, the second crafts; the rounds tumble out after. */
+    private static final double[] STROKES = {0.6, 1.0};
+    private static final double PRESS_LENGTH = 1.7;
+    private static final int ROUNDS = 4;
+    /** The tall bench: the materials gather into the part. */
+    private static final double GATHER_LENGTH = 0.9, GATHER_BEAT = 0.55;
     /** Guns on the gun smith table are turned so long ones lie side by side on a slant, as on a rack, not end to end. */
     private static final float DIAGONAL = 30;
 
@@ -121,6 +130,10 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
     private float selectedScale = 1;
     /** Recipes on the current page (and the chosen one) the player has the materials for, refreshed every tick. */
     private final Set<ResourceLocation> craftable = new HashSet<>();
+    /** How many blows or strokes of the current craft have landed (their sparks, smoke and sound played). */
+    private int landed;
+    /** A gun was forged: once the move is over the scene closes and the gun is drawn and inspected. */
+    private boolean drawAfter;
 
     public GunSmithScene(BlockPos pos, BlockState state, Direction side) {
         super(pos, side, Tacz.menuClass(), 0);
@@ -261,6 +274,26 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
         return at(0, layout.showOut(), layout.showUp() + Math.sin(Scene.clock() * 2) * 0.015);
     }
 
+    /** Where the part is forged: the middle of the desk, towards the player. */
+    private Vec3 anvil() {
+        return at(0, 0.12, layout.surface() + 0.02);
+    }
+
+    // ponytail: the press of the default gunpack's ammo bench, placed by eye from screenshots
+    /** The press's head, where its smoke puffs, and its mouth, where the materials go in and the rounds come out. */
+    private Vec3 pressHead() {
+        return at(0.28, 0.02, 1.45);
+    }
+
+    private Vec3 pressMouth() {
+        return at(0.28, 0.12, 1.08);
+    }
+
+    /** Where round {@code k} of the press comes to rest on the mat. */
+    private Vec3 roundRest(int k) {
+        return at(0.16 - 0.07 * k, 0.32 - 0.02 * k, layout.surface() + 0.01);
+    }
+
     /** The category title: past the grid's last row on a top, over the first row on a board. */
     private Vec3 titlePoint() {
         return layout.upright()
@@ -366,8 +399,71 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
             return;
         }
         int menuId = menu.containerId;
-        sound(SoundEvents.SMITHING_TABLE_USE, 0.5f, 1f);
-        startMove(CRAFT_LENGTH, CRAFT_BEAT, () -> TaczClient.craft(recipe.id(), menuId));
+        landed = 0;
+        if (layout == WIDE) {
+            sound(SoundEvents.ARMOR_EQUIP_IRON.value(), 0.5f, 0.8f);
+            drawAfter = true;
+            startMove(FORGE_LENGTH, BLOWS[BLOWS.length - 1], () -> {
+                AfterCraft.expect(recipe.output());
+                TaczClient.craft(recipe.id(), menuId);
+            });
+        } else if (layout == SINGLE) {
+            sound(SoundEvents.SMITHING_TABLE_USE, 0.5f, 1.2f);
+            CraftFx.press(root, STROKES);
+            startMove(PRESS_LENGTH, STROKES[STROKES.length - 1], () -> TaczClient.craft(recipe.id(), menuId));
+        } else {
+            sound(SoundEvents.SMITHING_TABLE_USE, 0.5f, 1f);
+            startMove(GATHER_LENGTH, GATHER_BEAT, () -> TaczClient.craft(recipe.id(), menuId));
+        }
+    }
+
+    /** Every frame: blows and strokes land on time; when a forging is over, the scene closes for the new gun. */
+    @Override
+    public void beforeFrame() {
+        double t = moveTime();
+        if (t >= 0) {
+            double[] hits = layout == WIDE ? BLOWS : layout == SINGLE ? STROKES : new double[0];
+            while (landed < hits.length && t >= hits[landed]) land(landed++);
+        } else if (drawAfter) {
+            drawAfter = false;
+            Scene.leave();
+            AfterCraft.go();
+        }
+    }
+
+    private void land(int hit) {
+        if (layout == WIDE) {
+            CraftFx.sparks(anvil(), 8);
+            CraftFx.smoke(anvil(), 3);
+            sound(SoundEvents.ANVIL_USE, 0.35f, 1.1f + 0.1f * hit);
+        } else {
+            CraftFx.smoke(pressHead(), 6);
+            sound(SoundEvents.PISTON_EXTEND, 0.45f, 1.4f);
+        }
+    }
+
+    /** The hammer's swing while forging, 0 (on the work) to 1 (raised), or -1 outside the blows. */
+    private double swing(double t) {
+        if (t < HAMMER_FROM || t > BLOWS[BLOWS.length - 1] + 0.05) return -1;
+        return Math.abs(Math.sin(Math.PI * (t - HAMMER_FROM) / (BLOWS[0] - HAMMER_FROM)));
+    }
+
+    /** The hammer's grip and pose for a swing: raised, the head turns up round the wrist. */
+    private Vec3[] hammer(double swing) {
+        double angle = Math.toRadians(55) * swing;
+        Vec3 along = side().scale(-Math.cos(angle)).add(UP.scale(Math.sin(angle)));
+        Vec3 headAxis = side().scale(Math.sin(angle)).add(UP.scale(Math.cos(angle)));
+        Vec3 grip = anvil().add(side().scale(CraftFx.HAMMER_REACH)).add(0, 0.03 + 0.06 * swing, 0);
+        return new Vec3[]{grip, along, headAxis};
+    }
+
+    /** While forging: the right hand swings the hammer, the left holds the part down. */
+    @Override
+    @Nullable
+    public Vec3[] handsOverride() {
+        double swing = layout == WIDE ? swing(moveTime()) : -1;
+        if (swing < 0) return null;
+        return new Vec3[]{hammer(swing)[0], anvil().add(right().scale(-0.2)).add(side().scale(0.05)).add(0, 0.04, 0)};
     }
 
     @Override
@@ -408,21 +504,77 @@ public final class GunSmithScene extends AddonMenuStation<AbstractContainerMenu>
         }
         if (selected == null) return;
 
-        // While crafting: the ingredients slide into the part and shrink away, then the part pops.
         double t = moveTime();
-        double gather = t < 0 ? 0 : Math.min(1, t / CRAFT_BEAT);
-        float pop = t < CRAFT_BEAT ? 1f : (float) (1 + 0.3 * Math.sin((t - CRAFT_BEAT) / (CRAFT_LENGTH - CRAFT_BEAT) * Math.PI));
         Vec3 showcase = showcase();
-        ItemPlacer.render(pose, buffers, eye, selected.output(), showcase, side, 99, layout.showScale() * selectedScale * pop, hoverTilt, light);
+        float showScale = layout.showScale() * selectedScale;
+        // the chosen part, and where its materials go while crafting (they slide in and shrink away)
+        Vec3 part = showcase, into = showcase;
+        float partScale = showScale, partTilt = hoverTilt;
+        boolean showPart = true;
+        double gather = 0;
+        if (t >= 0 && layout == WIDE) {
+            // The forge: the part lands on the desk, takes three blows, then rises before the camera.
+            into = anvil();
+            gather = Math.min(1, t / FORGE_LAND);
+            float lying = layout.scale() * selectedScale;
+            double beat = BLOWS[BLOWS.length - 1];
+            if (t < FORGE_LAND) {
+                float e = ease(gather);
+                part = showcase.lerp(anvil(), e);
+                partScale = Mth.lerp(e, showScale, lying);
+                partTilt = Mth.lerp(e, hoverTilt, 0);
+            } else if (t < beat) {
+                part = anvil();
+                partScale = lying;
+                partTilt = 0;
+            } else {
+                float e = ease((t - beat) / (FORGE_LENGTH - beat));
+                part = anvil().lerp(at(0, layout.camOut() - 0.45, layout.camUp() - 0.2), e);
+                partScale = Mth.lerp(e, lying, showScale * 1.2f);
+                partTilt = Mth.lerp(e, 0, hoverTilt);
+            }
+            double swing = swing(t);
+            if (swing >= 0) {
+                Vec3[] hammer = hammer(swing);
+                CraftFx.drawHammer(pose, buffers, eye, hammer[0], hammer[1], hammer[2], light);
+            }
+        } else if (t >= 0 && layout == SINGLE) {
+            // The press: the materials go into its mouth; after the strokes the rounds tumble out onto the mat.
+            into = pressMouth();
+            gather = Math.min(1, t / 0.4);
+            showPart = false;
+            double beat = STROKES[STROKES.length - 1];
+            for (int k = 0; k < ROUNDS; k++) {
+                double u = (t - beat - 0.08 * k) / 0.35;
+                if (u < 0) continue;
+                u = Math.min(1, u);
+                Vec3 from = pressMouth(), to = roundRest(k);
+                Vec3 at = new Vec3(Mth.lerp(u, from.x, to.x), Mth.lerp(u * u, from.y, to.y), Mth.lerp(u, from.z, to.z));
+                ItemPlacer.render(pose, buffers, eye, selected.output(), at, side, 300 + k, 0.35f, 0, light);
+            }
+        } else if (t >= 0) {
+            // The tall bench: the materials gather into the part, which pops.
+            gather = Math.min(1, t / GATHER_BEAT);
+            if (t >= GATHER_BEAT) {
+                partScale *= (float) (1 + 0.3 * Math.sin((t - GATHER_BEAT) / (GATHER_LENGTH - GATHER_BEAT) * Math.PI));
+            }
+        }
+        if (showPart) {
+            ItemPlacer.render(pose, buffers, eye, selected.output(), part, side, 99, partScale, partTilt, light);
+        }
 
         List<Tacz.Input> inputs = selected.inputs();
         for (int i = 0; i < inputs.size(); i++) {
             ItemStack[] options = inputs.get(i).items().getItems();
             if (options.length == 0 || gather >= 1) continue;
             ItemStack shown = options[(int) Scene.clock() % options.length];
-            Vec3 point = ingredientPoint(i, inputs.size()).lerp(showcase, gather * gather);
+            Vec3 point = ingredientPoint(i, inputs.size()).lerp(into, gather * gather);
             ItemPlacer.render(pose, buffers, eye, shown, point, side, 200 + i, (float) (layout.ingScale() * (1 - gather * 0.7)), hoverTilt, light);
         }
+    }
+
+    private static float ease(double x) {
+        return (float) (x * x * (3 - 2 * x));
     }
 
     @Override

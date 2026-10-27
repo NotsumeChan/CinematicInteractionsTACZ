@@ -19,6 +19,6 @@
     "java": ">=21",
     "fabric-api": "*",
     "cinematic": ">=0.18.25",
-    "tacz": "*"
+    "tacz": ">=0.7.1-alpha <0.8.0-alpha"
   }
 }
