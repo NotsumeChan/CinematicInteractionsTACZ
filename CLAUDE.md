@@ -36,7 +36,7 @@ export JAVA_HOME=$PWD/../.jdk/current           # fish: set -x JAVA_HOME $PWD/..
 ```
 
 - `libs/Cinematic Interaction-…-0.18.30.jar`, one per node (`cinematic_jar` in `versions/<node>/gradle.properties`),
-  come from `../CinematicInteractions` main: `./gradlew :1.20.1-fabric:build :1.21.1-fabric:build :1.21.1-neoforge:build :1.20.1-forge:build -x test
+  come from Cinematic Interactions at the commit pinned in the release workflow: `./gradlew :1.20.1-fabric:build :1.21.1-fabric:build :1.21.1-neoforge:build :1.20.1-forge:build -x test
   -Porg.gradle.java.installations.paths=<../.jdk/jdk-17…>,<../.jdk/jdk-21…> -Porg.gradle.java.installations.auto-download=false`
   (its 1.20.1 targets need a JDK 17: `../.jdk/jdk-17.0.21+9`, next to the 21). Our 1.20.1 node compiles with 21 at release 17.
 - In-game checks: the owner presses **F2** (screenshots in `run/<node>/client/screenshots/`) and the log is
@@ -55,8 +55,8 @@ export JAVA_HOME=$PWD/../.jdk/current           # fish: set -x JAVA_HOME $PWD/..
   `stonecutter.gradle`'s `replacements`. Each node has its own dev games, `run/<node>/client|server`.
 - Releases: `.github/workflows/release.yml` builds on push to `nightly` (rolling pre-release `nightly`) and `main`
   (release `v<mod_version>`, skipped if it exists). It builds Cinematic Interactions from the commit pinned there: keep
-  it in step with `cinematic_jar`. The `1.20.1-forge` node is left out of it (`CINEMATIC_TARGETS`): Cinematic
-  Interactions' Forge target does not build on GitHub's runners; its JAR is built locally.
+  it in step with `cinematic_jar`. It is pinned to the fork
+  `chomusuke-png/CinematicInteractions` (e1d9ff1), where the 1.20.1-forge target builds on GitHub's runners.
 - Feeding a script to `runServer` through stdin makes the server read the rest as console commands: run it alone.
 
 More: [docs/dev/architecture.md](docs/dev/architecture.md), [docs/dev/roadmap.md](docs/dev/roadmap.md),

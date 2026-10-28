@@ -103,7 +103,7 @@ Every combination tested in game, with exact versions and what was checked, live
 | 1.21.1 | Fabric | ✅ Works | [fabric-1.21.1.md](docs/compatibility/fabric-1.21.1.md) |
 | 1.20.1 | Fabric | ✅ Works | |
 | 1.21.1 | NeoForge | ✅ Works | |
-| 1.20.1 | Forge | ✅ Works (not in the automatic releases yet: build it locally) | |
+| 1.20.1 | Forge | ✅ Works | |
 
 The add-on only loads with **TACZ 0.7.1 or later within 0.7.x** (`>=0.7.1-alpha <0.8.0-alpha` in `fabric.mod.json`;
 the `-alpha` is needed because Fabric reads `0.7.1-forge1.1.8-hotfix2` as a pre-release of 0.7.1). With any other
