@@ -13,6 +13,24 @@ stonecutter.parameters {
         replace('ItemStack.isSameItemSameTags(', 'ItemStack.isSameItemSameComponents(')
         replace('SoundEvents.ARMOR_EQUIP_IRON,', 'SoundEvents.ARMOR_EQUIP_IRON.value(),')
     }
+    // 26.1: Mojang's renames, and Cinematic Interactions draws scenes into its own SceneBuffers
+    replacements.string(it.current.parsed >= '26.1') {
+        // the longest match wins, so the 1.21 rename's result needs its own
+        replace('ResourceLocation.fromNamespaceAndPath(', 'Identifier.fromNamespaceAndPath(')
+        replace('ResourceLocation', 'Identifier')
+        replace('net.minecraft.Util;', 'net.minecraft.util.Util;')
+        replace('GuiGraphics', 'GuiGraphicsExtractor')
+        replace('graphics.drawCenteredString(', 'graphics.centeredText(')
+        replace('void render(', 'void extractRenderState(')
+        replace('super.render(', 'super.extractRenderState(')
+        replace('MultiBufferSource buffers', 'SceneBuffers buffers')
+        replace('RenderType.entityCutout(', 'RenderTypes.entityCutout(')
+        replace('camera.getPosition()', 'camera.position()')
+        replace('.getNormal()', '.getUnitVec3i()')
+        replace('inventory.items', 'inventory.getNonEquipmentItems()')
+        replace('.items().getItems()', '.items().items().map(ItemStack::new).toArray(ItemStack[]::new)')
+        replace('displayClientMessage(Component.translatable("cinematic_tacz.closer"), true)', 'sendOverlayMessage(Component.translatable("cinematic_tacz.closer"))')
+    }
     // TACZ on NeoForge and Forge registers its recipe type through a deferred holder
     replacements.string(!it.current.project.endsWith('-fabric')) {
         replace('ModRecipe.GUN_SMITH_TABLE_CRAFTING)', 'ModRecipe.GUN_SMITH_TABLE_CRAFTING.get())')

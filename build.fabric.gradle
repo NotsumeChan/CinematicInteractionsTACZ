@@ -1,10 +1,16 @@
-// The Fabric nodes, with Loom.
+// The Fabric nodes, with Loom: the remapping one for the obfuscated versions, the plain one from 26.1 on (same JAR).
 plugins {
-    id 'fabric-loom' version '1.17.21'
+    id 'fabric-loom' version '1.17.21' apply false
 }
 
 def mcVersion = stonecutter.current.version
 def javaVersion = java_version as int
+def unobfuscated = stonecutter.eval(mcVersion, '>=26.1')
+apply plugin: unobfuscated ? 'net.fabricmc.fabric-loom' : 'fabric-loom'
+// the plain Loom has no mod* configurations: nothing to remap
+def mod = { String name -> unobfuscated ? name : 'mod' + name.capitalize() }
+// TaCZ Refabricated from Modrinth, or a JAR in libs/ where it is only on GitHub
+def tacz = project.hasProperty('tacz_jar') ? files(rootProject.file("libs/${tacz_jar}")) : "maven.modrinth:tacz-refabricated:${tacz_version}"
 
 version = mod_version
 group = 'dev.notsume.cinematictacz'
@@ -23,22 +29,23 @@ configurations {
 dependencies {
     minecraft "com.mojang:minecraft:${mcVersion}"
     // Mojang names with Parchment parameters, as Cinematic Interactions uses (TACZ's own Yarn names are remapped by Loom).
-    mappings loom.layered {
+    // 26.1+ ships with Mojang's names already.
+    if (!unobfuscated) mappings loom.layered {
         officialMojangMappings()
         parchment("org.parchmentmc.data:parchment-${mcVersion}:${parchment_mappings_version}@zip")
     }
-    modImplementation "net.fabricmc:fabric-loader:${loader_version}"
-    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+    "${mod('implementation')}" "net.fabricmc:fabric-loader:${loader_version}"
+    "${mod('implementation')}" "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
 
     // Never bundled: players install the hosts themselves.
-    modImplementation files(rootProject.file("libs/${cinematic_jar}"))
-    modCompileOnly "maven.modrinth:tacz-refabricated:${tacz_version}"
-    modCompileOnly "maven.modrinth:forge-config-api-port:${fcap_version}"
-    hostMods "maven.modrinth:tacz-refabricated:${tacz_version}"
+    "${mod('implementation')}" files(rootProject.file("libs/${cinematic_jar}"))
+    "${mod('compileOnly')}" tacz
+    "${mod('compileOnly')}" "maven.modrinth:forge-config-api-port:${fcap_version}"
+    hostMods tacz
     hostMods "maven.modrinth:forge-config-api-port:${fcap_version}"
     // optional: the settings button in its mods list (in the dev runs too, to reach the settings screen)
-    modCompileOnly "com.terraformersmc:modmenu:${modmenu_version}"
-    modLocalRuntime "com.terraformersmc:modmenu:${modmenu_version}"
+    "${mod('compileOnly')}" "com.terraformersmc:modmenu:${modmenu_version}"
+    "${mod('localRuntime')}" "com.terraformersmc:modmenu:${modmenu_version}"
 }
 
 loom {
@@ -62,13 +69,22 @@ loom {
 sourceSets.main.resources.srcDir rootProject.file('src/fabric/resources')
 
 processResources {
-    def props = [version: version, minecraft: mcVersion, java: javaVersion]
+    def props = [version: version, minecraft: mcVersion, java: javaVersion,
+                 tacz: project.findProperty('tacz_range') ?: '>=0.7.1-alpha <0.8.0-alpha']
     inputs.properties props
     filesMatching('fabric.mod.json') {
         expand props
     }
+    // mixins a node does without (mixins_exclude in its gradle.properties) are left out of the list
+    def excluded = (project.findProperty('mixins_exclude') ?: '').tokenize(',')
+    inputs.property 'mixinsExcluded', excluded
+    filesMatching('cinematic_tacz.mixins.json') {
+        filter { line -> excluded.inject(line) { kept, mixin -> kept.replace("\"${mixin}\", ", '') } }
+    }
 }
 
+// 26.1+ needs Java 25, newer than the one running Gradle
+if (javaVersion > 21) java.toolchain.languageVersion = JavaLanguageVersion.of(javaVersion)
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
     options.release = javaVersion

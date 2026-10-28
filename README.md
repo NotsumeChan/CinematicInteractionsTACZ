@@ -75,6 +75,17 @@ One JAR per Minecraft version and loader.
 | Forge Config API Port | v21.1.x (1.21.1), v8.0.x (1.20.1); required by TACZ | [Modrinth](https://modrinth.com/mod/forge-config-api-port) |
 | Mod Menu | optional, for the settings button | [Modrinth](https://modrinth.com/mod/modmenu) |
 
+**Fabric** (26.1.2)
+
+| Mod | Version | Link |
+|---|---|---|
+| Fabric Loader | ≥ 0.19.3 | [fabricmc.net](https://fabricmc.net/) |
+| Fabric API | ≥ 0.155.2+26.1.2 | [Modrinth](https://modrinth.com/mod/fabric-api) |
+| **Cinematic Interactions** (Fabric 26.1.2, from its `multiversion/` project) | ≥ 0.18.30 | [dcvke/CinematicInteractions](https://github.com/dcvke/CinematicInteractions) |
+| **TaCZ Refabricated** (unofficial 26.1.2 port, by q14433686-arch) | 1.1.8, R3-hotfix4 | [GitHub releases](https://github.com/q14433686-arch/TaCZ_Refabricated_Unofficial/releases) |
+| Forge Config API Port | ≥ 26.1.5; required by TACZ | [Modrinth](https://modrinth.com/mod/forge-config-api-port) |
+| Mod Menu | optional, for the settings button | [Modrinth](https://modrinth.com/mod/modmenu) |
+
 **NeoForge** (1.21.1)
 
 | Mod | Version | Link |
@@ -104,6 +115,7 @@ Every combination tested in game, with exact versions and what was checked, live
 | 1.20.1 | Fabric | ✅ Works | |
 | 1.21.1 | NeoForge | ✅ Works | |
 | 1.20.1 | Forge | ✅ Works | |
+| 26.1.2 | Fabric | ✅ Works | |
 
 The add-on only loads with **TACZ 0.7.1 or later within 0.7.x** (`>=0.7.1-alpha <0.8.0-alpha` in `fabric.mod.json`;
 the `-alpha` is needed because Fabric reads `0.7.1-forge1.1.8-hotfix2` as a pre-release of 0.7.1). With any other
@@ -117,14 +129,17 @@ may need adjustments.
 
 ## 🛠️ Building
 
-Java 21 (the 1.20.1 JAR is compiled for Java 17). One codebase builds every version with
+Java 21 (the 1.20.1 JAR is compiled for Java 17, the 26.1.2 one for Java 25: Gradle needs a JDK 25 for it). One codebase builds every version with
 [Stonecutter](https://stonecutter.kikugie.dev/): a node per Minecraft version and loader, `1.21.1-fabric` and
-`1.20.1-fabric`, `1.21.1-neoforge`, `1.20.1-forge`. The Cinematic Interactions JARs are not on any Maven repository: build its targets (it needs a JDK 17
+`1.20.1-fabric`, `1.21.1-neoforge`, `1.20.1-forge`, `26.1.2-fabric` (26.1 is not obfuscated: plain Loom, no mappings). The Cinematic Interactions JARs are not on any Maven repository: build its targets (it needs a JDK 17
 for 1.20.1) and copy them to `libs/`.
 
 ```sh
 (cd ../CinematicInteractions && ./gradlew :1.20.1-fabric:build :1.21.1-fabric:build :1.21.1-neoforge:build :1.20.1-forge:build -x test)
 cp ../CinematicInteractions/versions/1.2*/build/libs/*-0.18.30.jar libs/
+# 26.1.2: Cinematic Interactions' multiversion/ project (Java 25), and TACZ from its GitHub release (tacz_url)
+(cd ../CinematicInteractions/multiversion && ./gradlew :26.1.2:build -x test)
+cp ../CinematicInteractions/multiversion/versions/26.1.2/build/libs/*26.1.2-0.18.30.jar libs/
 ./gradlew build                       # a JAR per node in versions/<node>/build/libs/
 ./gradlew :1.21.1-fabric:runClient    # test game with TACZ and Cinematic Interactions
 ```
@@ -144,7 +159,7 @@ install would, because they carry nested libraries the dev classpath doesn't loa
 
 ## 🌿 Branches
 
-`dev` → `qa` → `nightly` → `main`. Everything lands in `dev` first; `main` gets tested releases.
+`dev` → `qa` → `main`. Everything lands in `dev` first; `main` gets tested releases.
 
 ## 🙏 Credits
 

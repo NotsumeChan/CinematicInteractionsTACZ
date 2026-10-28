@@ -57,9 +57,16 @@ public final class CinematicTacz {
     private static void registerStations() {
         // ponytail: each table's front derived from TACZ's getStateForPlacement, checked in game for the default rotations
         for (String table : Tacz.TABLES) {
+            //? if >=26.1 {
+            /*// the root opens the menu: from 26.1 only it has a block entity, so the other half has no menu of its own
+            AddonStations.register(new AddonStations.Definition(scene(table),
+                    ResourceLocation.fromNamespaceAndPath(Tacz.NAMESPACE, table), Tacz.menuClass(),
+                    state -> List.of(Tacz.front(state)), Tacz::openMenu));
+            *///?} else {
             AddonStations.register(new AddonStations.Definition(scene(table),
                     ResourceLocation.fromNamespaceAndPath(Tacz.NAMESPACE, table), Tacz.menuClass(),
                     state -> List.of(Tacz.front(state))));
+            //?}
         }
     }
 }

@@ -12,11 +12,17 @@ import com.tacz.guns.crafting.GunSmithTableRecipe;
 import com.tacz.guns.init.ModRecipe;
 import com.tacz.guns.inventory.GunSmithTableMenu;
 import com.tacz.guns.resource.filter.RecipeFilter;
+//? if >=26.1 {
+/*import com.tacz.guns.resource.CommonAssetsManager;
+*///?}
 import com.tacz.guns.resource.index.CommonBlockIndex;
 import com.tacz.guns.resource.pojo.data.block.TabConfig;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
+//? if >=26.1 {
+/*import net.minecraft.server.level.ServerPlayer;
+*///?}
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
@@ -89,6 +95,15 @@ public final class Tacz {
         return state.getBlock() instanceof AbstractGunSmithTableBlock table ? table.getRootPos(pos, state) : null;
     }
 
+    //? if >=26.1 {
+    /*// Opens the table's menu, from its root block whichever block was used, as TACZ's own use does. From 26.1 only the
+    // root of a two-block table has a block entity (the menu and its type).
+    public static void openMenu(ServerPlayer player, BlockPos pos, BlockState state) {
+        BlockPos root = root(player.level(), pos);
+        if (root != null && player.level().getBlockEntity(root) instanceof GunSmithTableBlockEntity table) player.openMenu(table);
+    }
+
+    *///?}
     /** The table type (a gunpack's block id) the table at {@code root} keeps; null for anything but a table. */
     @Nullable
     public static ResourceLocation keptType(Level level, BlockPos root) {
@@ -109,7 +124,16 @@ public final class Tacz {
         List<TabConfig> configs = everything ? TabConfig.DEFAULT_TABS : index.map(i -> i.getData().getTabs()).orElse(List.of());
         RecipeFilter filter = everything ? null : index.map(CommonBlockIndex::getFilter).orElse(null);
         // each recipe with its id (1.21 hands them in holders, 1.20.1 knows its own)
-        //? if >=1.21 {
+        //? if >=26.1 {
+        /*// the client has no recipe manager from 26.1: TACZ syncs its table recipes itself, as its own table window reads them
+        List<Map.Entry<ResourceLocation, GunSmithTableRecipe>> all = CommonAssetsManager.get().getAllTableRecipes().stream()
+                .filter(entry -> entry.getValue() != null && entry.getValue().getResult() != null)
+                .map(entry -> {
+                    GunSmithTableRecipe recipe = new GunSmithTableRecipe(entry.getKey(), entry.getValue());
+                    recipe.init();
+                    return Map.entry(entry.getKey(), recipe);
+                }).toList();
+        *///?} else if >=1.21 {
         List<Map.Entry<ResourceLocation, GunSmithTableRecipe>> all = level.getRecipeManager().getAllRecipesFor(ModRecipe.GUN_SMITH_TABLE_CRAFTING)
                 .stream().map(holder -> Map.entry(holder.id(), holder.value())).toList();
         //?} else {

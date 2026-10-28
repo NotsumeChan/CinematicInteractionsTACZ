@@ -1,11 +1,9 @@
-# Builds the add-on (every Stonecutter node) on nightly and main and publishes the JARs:
-# - nightly: a rolling pre-release under the tag "nightly", replaced on every push
-# - main: a release "v<mod_version>" (gradle.properties); skipped when that version is already released
+# Builds the add-on (every Stonecutter node) on main and publishes the JARs as a release "v<mod_version>" (gradle.properties); skipped when that version is already released
 name: Release
 
 on:
   push:
-    branches: [nightly, main]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -23,6 +21,8 @@ env:
   CINEMATIC_COMMIT: e1d9ff1
   # The nodes released (each built against Cinematic Interactions' target of the same name)
   CINEMATIC_TARGETS: 1.20.1-fabric 1.21.1-fabric 1.21.1-neoforge 1.20.1-forge
+  # Nodes built against a version of Cinematic Interactions' multiversion/ project (Fabric 26.1+): <node>=<version>
+  MULTIVERSION_TARGETS: 26.1.2-fabric=26.1.2
 
 jobs:
   build:
@@ -33,9 +33,10 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          # 1.20.1 targets build with 17 (Cinematic Interactions' toolchain), the rest and Gradle itself with 21
+          # 1.20.1 targets build with 17 (Cinematic Interactions' toolchain), 26.1+ with 25, the rest and Gradle itself with 21
           java-version: |
             17
+            25
             21
 
       # this repo does not track the Gradle wrapper
@@ -54,19 +55,25 @@ jobs:
             jar=$(grep '^cinematic_jar=' "$GITHUB_WORKSPACE/versions/$t/gradle.properties" | cut -d= -f2)
             cp "versions/$t/build/libs/$jar" "$GITHUB_WORKSPACE/libs/"
           done
+          # its 26.1+ versions, with Java 25
+          cd multiversion
+          JAVA_HOME="$JAVA_HOME_25_X64" sh gradlew $(for t in $MULTIVERSION_TARGETS; do echo ":${t#*=}:build"; done) -x test --no-daemon
+          for t in $MULTIVERSION_TARGETS; do
+            jar=$(grep '^cinematic_jar=' "$GITHUB_WORKSPACE/versions/${t%%=*}/gradle.properties" | cut -d= -f2)
+            cp "versions/${t#*=}/build/libs/$jar" "$GITHUB_WORKSPACE/libs/"
+          done
+
+      # TACZ ports that are only on GitHub (tacz_jar and tacz_url in the node's gradle.properties)
+      - name: Download TACZ JARs
+        run: |
+          for props in versions/*/gradle.properties; do
+            url=$(grep '^tacz_url=' "$props" | cut -d= -f2-)
+            [ -n "$url" ] || continue
+            curl -sSfL "$url" -o "libs/$(grep '^tacz_jar=' "$props" | cut -d= -f2-)"
+          done
 
       - name: Build add-on
-        run: gradle $(for t in $CINEMATIC_TARGETS; do echo ":$t:build"; done) --no-daemon
-
-      - name: Publish nightly
-        if: github.ref_name == 'nightly'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release delete nightly --cleanup-tag --yes || true
-          gh release create nightly versions/*/build/libs/*.jar --prerelease --target "$GITHUB_SHA" \
-            --title "Nightly ($(git rev-parse --short HEAD))" \
-            --notes "Untested build of \`nightly\` at $GITHUB_SHA. Replaced on every push."
+        run: gradle $(for t in $CINEMATIC_TARGETS ${MULTIVERSION_TARGETS}; do echo ":${t%%=*}:build"; done) --no-daemon
 
       - name: Publish release
         if: github.ref_name == 'main'

@@ -64,6 +64,14 @@ version the owner tested and gave feedback on.
      `NetworkHooks.openScreen` and its type (TACZ's client menu factory reads it unconditionally; Cinematic Interactions
      opens menus with a plain `openMenu`). The renderer hook is not remapped (`remap = false`): TACZ's SRG JAR keeps
      `render`, only its bridge is `m_6922_`. Forge loads TACZ's jar-in-jar libraries itself, in the dev runs too.
+8. **Fabric 26.1.2.** Done, tested in game (2026-10-28). Found in the test: the dev game needs Fabric Loader 0.19.5
+   (`loader_version` in the node's properties), and the two-block tables open their menu from the root block
+   (`Tacz.openMenu`, the definition's opener: from 26.1 only the root has a block entity). TACZ: the unofficial TaCZ Refabricated port by
+   q14433686-arch, 1.1.8+fabric.26.1.2.R3-hotfix4 (GitHub releases only; it also has 26.2-26.4 branches); Cinematic
+   Interactions: its `multiversion/` 26.1.2 target. One node, `26.1.2-fabric`, from the same sources (see `CLAUDE.md`).
+   To check in game: recipes in every table (they now come from TACZ's synced `CommonAssetsManager`), press, printer
+   plate and the forge's tools (renderer hook on `submit`), shoot/aim with the mouse without `KeyMappingMixin`, the
+   draw after forging when the gun lands outside the hotbar.
 
 ## Requests for Cinematic Interactions' owner
 

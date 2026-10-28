@@ -5,7 +5,14 @@ import com.tacz.guns.block.entity.GunSmithTableBlockEntity;
 import com.tacz.guns.client.renderer.block.GunSmithTableRenderer;
 import dev.notsume.cinematictacz.client.CraftFx;
 import dev.notsume.cinematictacz.tacz.TaczClient;
+//? if >=26.1 {
+/*import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.SubmitNodeCollector;
+import net.minecraft.client.renderer.state.level.CameraRenderState;
+*///?} else {
 import net.minecraft.client.renderer.MultiBufferSource;
+//?}
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -18,6 +25,30 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
  */
 @Mixin(GunSmithTableRenderer.class)
 abstract class TaczTableRendererMixin {
+    //? if >=26.1 {
+    /*// 26.1: drawn from a render state; the model's geometry is captured at once in submit, so the bones are set around it
+    private static final String SUBMIT = "submit(Lcom/tacz/guns/client/renderer/block/GunSmithTableRenderer$GunSmithTableRenderState;"
+            + "Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;"
+            + "Lnet/minecraft/client/renderer/state/level/CameraRenderState;)V";
+
+    @Inject(method = SUBMIT, at = @At("HEAD"), require = 0)
+    private void cinematicTacz$pressDown(GunSmithTableRenderer.GunSmithTableRenderState state, PoseStack pose,
+                                         SubmitNodeCollector collector, CameraRenderState camera, CallbackInfo ci) {
+        if (Minecraft.getInstance().level != null
+                && Minecraft.getInstance().level.getBlockEntity(state.blockPos) instanceof GunSmithTableBlockEntity table) {
+            cinematicTacz$set(table);
+        }
+    }
+
+    @Inject(method = SUBMIT, at = @At("TAIL"), require = 0)
+    private void cinematicTacz$pressBack(GunSmithTableRenderer.GunSmithTableRenderState state, PoseStack pose,
+                                         SubmitNodeCollector collector, CameraRenderState camera, CallbackInfo ci) {
+        if (Minecraft.getInstance().level != null
+                && Minecraft.getInstance().level.getBlockEntity(state.blockPos) instanceof GunSmithTableBlockEntity table) {
+            cinematicTacz$reset(table);
+        }
+    }
+    *///?} else {
     // Not remapped (another mod's method): the descriptor with dev names and the one a real Fabric game sees
     // (intermediary names; TaCZ Refabricated's jar keeps the method's own name, render) are both listed, and whichever
     // exists is hooked. Forge's TACZ, in SRG names, also keeps render (only its bridge is m_6922_), with Mojang's class
@@ -30,6 +61,19 @@ abstract class TaczTableRendererMixin {
     @Inject(method = {RENDER, RENDER_INTERMEDIARY}, at = @At("HEAD"), require = 0, remap = false)
     private void cinematicTacz$pressDown(GunSmithTableBlockEntity table, float partialTick, PoseStack pose,
                                          MultiBufferSource buffers, int light, int overlay, CallbackInfo ci) {
+        cinematicTacz$set(table);
+    }
+
+    @Inject(method = {RENDER, RENDER_INTERMEDIARY}, at = @At("TAIL"), require = 0, remap = false)
+    private void cinematicTacz$pressBack(GunSmithTableBlockEntity table, float partialTick, PoseStack pose,
+                                         MultiBufferSource buffers, int light, int overlay, CallbackInfo ci) {
+        cinematicTacz$reset(table);
+    }
+    //?}
+
+    /** Before the table is drawn: its press, build plate and tools as the scene has them now. */
+    @Unique
+    private static void cinematicTacz$set(GunSmithTableBlockEntity table) {
         float stroke = CraftFx.pressStroke(table.getBlockPos()), plate = CraftFx.plateDrop(table.getBlockPos());
         if (stroke != 0) TaczClient.press(table, stroke);
         if (plate >= 0) TaczClient.print(table, plate, true);
@@ -37,9 +81,9 @@ abstract class TaczTableRendererMixin {
         if (held != null) TaczClient.hide(table, held, true);
     }
 
-    @Inject(method = {RENDER, RENDER_INTERMEDIARY}, at = @At("TAIL"), require = 0, remap = false)
-    private void cinematicTacz$pressBack(GunSmithTableBlockEntity table, float partialTick, PoseStack pose,
-                                         MultiBufferSource buffers, int light, int overlay, CallbackInfo ci) {
+    /** After: the shared model back as it was, for the next table of its type. */
+    @Unique
+    private static void cinematicTacz$reset(GunSmithTableBlockEntity table) {
         if (CraftFx.pressStroke(table.getBlockPos()) != 0) TaczClient.press(table, 0);
         if (CraftFx.plateDrop(table.getBlockPos()) >= 0) TaczClient.print(table, 0, false);
         for (TaczClient.Tool tool : TaczClient.Tool.values()) TaczClient.hide(table, tool, false);

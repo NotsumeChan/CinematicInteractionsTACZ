@@ -57,10 +57,21 @@ final class AfterCraft {
         for (int i = 0; i < inventory.items.size() && i < had.length; i++) {
             if (!had[i] && ItemStack.isSameItemSameComponents(inventory.items.get(i), expected)) {
                 if (Inventory.isHotbarSlot(i)) {
+                    //? if >=26.1 {
+                    /*inventory.setSelectedSlot(i);
+                    *///?} else {
                     inventory.selected = i;
+                    //?}
                     mc.getConnection().send(new ServerboundSetCarriedItemPacket(i));
                 } else {
+                    //? if >=26.1 {
+                    /*// 26.1 has no pick by slot: swapped into the hand in the inventory, once the table's menu is closed
+                    if (player.containerMenu != player.inventoryMenu) return;
+                    mc.gameMode.handleContainerInput(player.inventoryMenu.containerId, i, inventory.getSelectedSlot(),
+                            net.minecraft.world.inventory.ContainerInput.SWAP, player);
+                    *///?} else {
                     mc.gameMode.handlePickItem(i);
+                    //?}
                 }
                 waiting = false;
                 drawn = true;

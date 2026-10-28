@@ -22,8 +22,13 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 *///?}
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.player.LocalPlayer;
+//? if >=26.1 {
+/*import dev.dyslexic.cinematic.client.SceneBuffers;
+import net.minecraft.client.renderer.rendertype.RenderTypes;
+*///?} else {
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
+//?}
 import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;

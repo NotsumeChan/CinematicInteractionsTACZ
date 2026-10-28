@@ -1,5 +1,5 @@
-//? if fabric {
-// Fabric only: Forge and NeoForge already let one button press several key mappings.
+//? if fabric && <26.1 {
+// Fabric only: Forge and NeoForge already let one button press several key mappings, and so does vanilla from 26.1.
 package dev.notsume.cinematictacz.mixin;
 
 import com.mojang.blaze3d.platform.InputConstants;

@@ -16,7 +16,11 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
+//? if >=26.1 {
+/*import dev.dyslexic.cinematic.client.SceneBuffers;
+*///?} else {
 import net.minecraft.client.renderer.MultiBufferSource;
+//?}
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
